@@ -1,9 +1,4 @@
-# `AGENT.md`
-
-This guide is only for `pt_BR.montetaiscanlator`.
-Use it as the default workflow for this source.
-
-## Source
+## Sources
 
 - `sources/pt_BR.montetaiscanlator`
 
@@ -15,7 +10,13 @@ Use it as the default workflow for this source.
 - `public/sources/` contains packaged `.aix` outputs.
 - `public/icons/` contains icon assets copied during list build.
 
-## Commands for sources 
+## Commands for sources
+
+Format the source.
+
+```sh
+env -C sources/pt_BR.montetaiscanlator cargo fmt
+```
 
 Package the source.
 
@@ -58,9 +59,10 @@ aidoku logcat
 Before publishing, always execute this sequence.
 
 1. Bump `info.version` in `sources/pt_BR.montetaiscanlator/res/source.json`.
-2. Run `env -C sources/pt_BR.montetaiscanlator aidoku package`.
-3. Run `aidoku verify sources/pt_BR.montetaiscanlator/package.aix`.
-4. Run `aidoku build sources/*/package.aix --name "Aidoku Custom Sources"`.
+2. Run `env -C sources/pt_BR.montetaiscanlator cargo fmt`.
+3. Run `env -C sources/pt_BR.montetaiscanlator aidoku package`.
+4. Run `aidoku verify sources/pt_BR.montetaiscanlator/package.aix`.
+5. Run `aidoku build sources/*/package.aix --name "Aidoku Custom Sources"`.
 
 ## Notes
 
