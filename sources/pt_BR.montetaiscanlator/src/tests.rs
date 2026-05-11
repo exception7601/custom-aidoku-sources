@@ -3,7 +3,7 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Manga, MangaStatus,
 	PageContent, Source,
 	alloc::{String, Vec},
-	imports::net::Request,
+	imports::{html::Html, net::Request, std::current_date},
 };
 use aidoku_test::aidoku_test;
 
@@ -35,6 +35,19 @@ fn make_chapter() -> Chapter {
 		url: Some(SAMPLE_CHAPTER_URL.into()),
 		..Default::default()
 	}
+}
+
+fn find_sample_manga_with_cover(entries: Vec<Manga>) -> Manga {
+	entries
+		.into_iter()
+		.find(|entry| entry.key == SAMPLE_MANGA_KEY && entry.cover.is_some())
+		.expect("Expected sample manga cover in list")
+}
+
+fn assert_update_keeps_cover(source: &MonteTaiScanlator, manga: Manga) {
+	let expected_cover = manga.cover.clone();
+	let updated = source.get_manga_update(manga, true, false).unwrap();
+	assert_eq!(updated.cover, expected_cover);
 }
 
 #[aidoku_test]
@@ -76,6 +89,107 @@ fn helper_parses_numbers_and_dates() {
 		Some(String::from("03/05/2026"))
 	);
 	assert_eq!(parse_pt_br_date("foo"), None);
+}
+
+#[aidoku_test]
+fn helper_parses_relative_chapter_dates() {
+	let fallback_date = 1_234_567_890;
+
+	assert_eq!(
+		chapter_date_from_text("03/05/2026", fallback_date),
+		parse_pt_br_date("03/05/2026").unwrap()
+	);
+	assert_eq!(
+		chapter_date_from_text("Capitulo 126 18 horas atrás", fallback_date),
+		1_234_503_090
+	);
+	assert_eq!(
+		chapter_date_from_text("5 minutos atrás", fallback_date),
+		1_234_567_590
+	);
+	assert_eq!(
+		chapter_date_from_text("2 dias atrás", fallback_date),
+		1_234_395_090
+	);
+	assert_eq!(
+		chapter_date_from_text("texto sem data", fallback_date),
+		fallback_date
+	);
+}
+
+#[aidoku_test]
+fn source_parses_relative_chapter_dates_from_live_page() {
+	let source = MonteTaiScanlator::new();
+	let updated = source.get_manga_update(make_manga(), false, true).unwrap();
+	let chapters = updated.chapters.unwrap_or_default();
+	let now = current_date();
+	let chapter = chapters
+		.iter()
+		.find(|chapter| chapter.key.ends_with("/capitulo-126"))
+		.expect("Expected chapter 126 in live chapter list");
+	let date_uploaded = chapter
+		.date_uploaded
+		.expect("Expected relative chapter date");
+
+	assert!(date_uploaded < now);
+	assert!(date_uploaded >= now - (20 * 60 * 60));
+	assert!(date_uploaded <= now - (17 * 60 * 60));
+}
+
+#[aidoku_test]
+fn parser_prefers_smaller_cover_from_srcset() {
+	let html = r#"
+		<div class='mt-manga-catalog-card__poster'>
+			<a href='https://montetaiscanlator.xyz/manga/test/'>
+				<img
+					src='https://montetaiscanlator.xyz/wp-content/uploads/test-175x238.png'
+					srcset='https://montetaiscanlator.xyz/wp-content/uploads/test-110x150.png 110w, https://montetaiscanlator.xyz/wp-content/uploads/test-175x238.png 175w, https://montetaiscanlator.xyz/wp-content/uploads/test-350x476.png 350w'
+					alt='Test Manga'
+				/>
+			</a>
+		</div>
+	"#;
+	let document = Html::parse(html).unwrap();
+	let container = document
+		.select_first(".mt-manga-catalog-card__poster")
+		.unwrap();
+	let entries = parse_entries(&document, false);
+
+	assert_eq!(
+		extract_cover_from_container(&container).as_deref(),
+		Some("https://montetaiscanlator.xyz/wp-content/uploads/test-110x150.png")
+	);
+	assert_eq!(entries.len(), 1);
+	assert_eq!(
+		entries[0].cover.as_deref(),
+		Some("https://montetaiscanlator.xyz/wp-content/uploads/test-110x150.png")
+	);
+}
+
+#[aidoku_test]
+fn parser_uses_popular_home_title_over_gif_alt() {
+	let html = r#"
+		<article class='mt-popular-home__card'>
+			<a class='mt-popular-home__thumb' href='https://montetaiscanlator.xyz/manga/o-deus-do-caos-todo-poderoso/'>
+				<span class='mt-popular-home__rank'>#5</span>
+				<img width='506' height='740' src='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/gif-myst.gif' class='img-responsive' style='width:auto; ' alt='gif-myst'>
+			</a>
+			<h3 class='mt-popular-home__title'>
+				<a href='https://montetaiscanlator.xyz/manga/o-deus-do-caos-todo-poderoso/'>Deus do Caos Todo-Poderoso</a>
+			</h3>
+			<p class='mt-popular-home__views'>173.8K views</p>
+		</article>
+	"#;
+	let document = Html::parse(html).unwrap();
+	let entries = parse_entries(&document, false);
+
+	assert_eq!(entries.len(), 1);
+	assert_eq!(entries[0].key, "o-deus-do-caos-todo-poderoso");
+	assert_eq!(entries[0].title, "Deus do Caos Todo-Poderoso");
+	assert_eq!(
+		entries[0].cover.as_deref(),
+		Some("https://montetaiscanlator.xyz/wp-content/uploads/2024/12/gif-myst.gif")
+	);
 }
 
 #[aidoku_test]
@@ -136,6 +250,26 @@ fn source_maps_search_entries() {
 	assert!(result.entries.iter().any(|entry| {
 		entry.title.to_lowercase().contains("duque") || entry.key.to_lowercase().contains("duque")
 	}));
+}
+
+#[aidoku_test]
+fn source_keeps_home_list_cover_on_manga_update() {
+	let source = MonteTaiScanlator::new();
+	let result = source.get_search_manga_list(None, 1, Vec::new()).unwrap();
+	let manga = find_sample_manga_with_cover(result.entries);
+
+	assert_update_keeps_cover(&source, manga);
+}
+
+#[aidoku_test]
+fn source_keeps_search_list_cover_on_manga_update() {
+	let source = MonteTaiScanlator::new();
+	let result = source
+		.get_search_manga_list(Some(String::from("duque")), 1, Vec::new())
+		.unwrap();
+	let manga = find_sample_manga_with_cover(result.entries);
+
+	assert_update_keeps_cover(&source, manga);
 }
 
 #[aidoku_test]
@@ -206,6 +340,9 @@ fn source_maps_manga_chapters() {
 			.as_ref()
 			.map(|title| title.to_lowercase().contains("capitulo"))
 			.unwrap_or(false)
+	}));
+	assert!(chapters.iter().any(|chapter| {
+		chapter.key.ends_with("/capitulo-126") && chapter.date_uploaded.is_some()
 	}));
 }
 
@@ -369,6 +506,15 @@ fn parser_maps_manga_document_directly() {
 	assert!(!tags.is_empty());
 	assert!(status != MangaStatus::Unknown);
 	assert!(chapters.len() > 40);
+}
+
+#[aidoku_test]
+fn parser_prefers_smaller_manga_cover_from_srcset() {
+	let document = Request::get(SAMPLE_MANGA_URL).unwrap().html().unwrap();
+	let cover = parse_manga_cover(&document).unwrap();
+
+	assert!(cover.starts_with("https://montetaiscanlator.xyz/wp-content/uploads/"));
+	assert!(cover.ends_with("-200x300.png"));
 }
 
 #[aidoku_test]

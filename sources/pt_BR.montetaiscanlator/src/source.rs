@@ -84,8 +84,10 @@ impl Source for MonteTaiScanlator {
 			if let Some(title) = parse_manga_title(&html) {
 				manga.title = title;
 			}
-			if let Some(cover) = parse_manga_cover(&html) {
-				manga.cover = Some(cover);
+			if manga.cover.is_none() {
+				if let Some(cover) = parse_manga_cover(&html) {
+					manga.cover = Some(cover);
+				}
 			}
 			if let Some(description) = parse_manga_description(&html) {
 				manga.description = Some(description);

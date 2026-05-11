@@ -3,7 +3,7 @@ use aidoku::{
 	alloc::String,
 	imports::{
 		html::{Document, Element},
-		std::parse_date,
+		std::parse_local_date,
 	},
 	prelude::*,
 };
@@ -386,7 +386,70 @@ pub(crate) fn extract_date_token(text: &str) -> Option<String> {
 
 pub(crate) fn parse_pt_br_date(text: &str) -> Option<i64> {
 	let value = normalize_text(text);
-	parse_date(&value, "dd/MM/yyyy").or_else(|| parse_date(&value, "d/M/yyyy"))
+	if value.is_empty() {
+		return None;
+	}
+	let value = format!("{value} 00:00");
+	parse_local_date(&value, "dd/MM/yyyy HH:mm")
+		.or_else(|| parse_local_date(&value, "d/M/yyyy HH:mm"))
+}
+
+pub(crate) fn chapter_date_from_text(text: &str, fallback_date: i64) -> i64 {
+	let value = normalize_text(text);
+	if let Some(token) = extract_date_token(&value) {
+		if let Some(timestamp) = parse_pt_br_date(&token) {
+			return timestamp;
+		}
+	}
+	if let Some(timestamp) = parse_relative_chapter_date(&value, fallback_date) {
+		return timestamp;
+	}
+	fallback_date
+}
+
+fn parse_relative_chapter_date(text: &str, fallback_date: i64) -> Option<i64> {
+	let lower = normalize_text(text).to_lowercase();
+	if lower.is_empty() {
+		return None;
+	}
+
+	let mut previous_token: Option<&str> = None;
+	for token in lower.split_whitespace() {
+		if let Some(unit_seconds) = relative_unit_seconds(token) {
+			let count = previous_token.and_then(parse_relative_count)?;
+			let offset = count.checked_mul(unit_seconds)?;
+			let timestamp = fallback_date.checked_sub(offset)?;
+			return Some(timestamp);
+		}
+		previous_token = Some(token);
+	}
+
+	None
+}
+
+fn relative_unit_seconds(token: &str) -> Option<i64> {
+	if token.starts_with("minut") {
+		return Some(60);
+	}
+	if token.starts_with("hor") {
+		return Some(60 * 60);
+	}
+	if token.starts_with("dia") {
+		return Some(60 * 60 * 24);
+	}
+	None
+}
+
+fn parse_relative_count(token: &str) -> Option<i64> {
+	let count = token
+		.chars()
+		.filter(|ch| ch.is_ascii_digit())
+		.collect::<String>();
+	if count.is_empty() {
+		None
+	} else {
+		count.parse::<i64>().ok()
+	}
 }
 
 pub(crate) fn percent_encode(input: &str) -> String {

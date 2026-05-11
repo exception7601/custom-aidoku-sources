@@ -1,16 +1,19 @@
 use aidoku::{
 	Chapter, Manga, MangaStatus,
 	alloc::{String, Vec},
-	imports::html::{Document, Element},
+	imports::{
+		html::{Document, Element},
+		std::current_date,
+	},
 	prelude::*,
 };
 use serde::Deserialize;
 
 use crate::{
-	BASE_URL, absolute_url, attr_url, chapter_key_from_url, chapter_title_from_text,
-	cover_image_url, extract_date_token, image_url, is_chapter_image, is_chapter_url,
+	BASE_URL, absolute_url, attr_url, chapter_date_from_text, chapter_key_from_url,
+	chapter_title_from_text, cover_image_url, image_url, is_chapter_image, is_chapter_url,
 	is_likely_cover_url, is_manga_url, looks_like_series_title, manga_key_from_url, meta_content,
-	normalize_text, parse_chapter_number, parse_pt_br_date, percent_encode,
+	normalize_text, parse_chapter_number, percent_encode,
 };
 
 pub(crate) fn home_url(page: i32) -> String {
@@ -103,6 +106,10 @@ fn extract_title_from_link(link: &Element, url: &str) -> Option<String> {
 		}
 	}
 
+	if let Some(title) = extract_title_from_related_heading(link, url) {
+		return Some(title);
+	}
+
 	if let Some(images) = link.select("img") {
 		for image in images {
 			if let Some(alt_text) = image.attr("alt") {
@@ -115,6 +122,60 @@ fn extract_title_from_link(link: &Element, url: &str) -> Option<String> {
 	}
 
 	manga_key_from_url(url).map(|value| normalize_text(&value))
+}
+
+fn extract_title_from_related_heading(link: &Element, url: &str) -> Option<String> {
+	let current_key = manga_key_from_url(url)?;
+	let selectors = [
+		"h1 a[href*='/manga/'], h2 a[href*='/manga/'], h3 a[href*='/manga/'], h4 a[href*='/manga/']",
+		".mt-popular-home__title a[href*='/manga/']",
+		".mt-manga-catalog-card__title a[href*='/manga/']",
+		".c-tabs-item__title a[href*='/manga/']",
+	];
+
+	let mut parent = link.parent();
+	for _ in 0..4 {
+		let Some(element) = parent else {
+			break;
+		};
+
+		for selector in selectors {
+			if let Some(title_links) = element.select(selector) {
+				for title_link in title_links {
+					let Some(title_url) = attr_url(&title_link, "href") else {
+						continue;
+					};
+					let Some(title_key) = manga_key_from_url(&title_url) else {
+						continue;
+					};
+					if title_key != current_key {
+						continue;
+					}
+
+					let text = normalize_text(&title_link.text().unwrap_or_default());
+					if looks_like_series_title(&text) {
+						return Some(text);
+					}
+
+					for attr_name in ["aria-label", "title"] {
+						if let Some(value) = title_link.attr(attr_name) {
+							let mut candidate = normalize_text(&value);
+							if let Some(stripped) = candidate.strip_prefix("Abrir ") {
+								candidate = String::from(stripped);
+							}
+							if looks_like_series_title(&candidate) {
+								return Some(candidate);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		parent = element.parent();
+	}
+
+	None
 }
 
 fn extract_cover_from_link(link: &Element) -> Option<String> {
@@ -139,7 +200,7 @@ fn extract_cover_from_link(link: &Element) -> Option<String> {
 fn extract_cover_from_element(element: &Element) -> Option<String> {
 	if let Some(images) = element.select("img") {
 		for image in images {
-			let Some(url) = image_url(&image) else {
+			let Some(url) = cover_image_url(&image) else {
 				continue;
 			};
 			if is_likely_cover_url(&url) {
@@ -266,7 +327,7 @@ pub(crate) fn extract_manga_url_and_title(container: &Element) -> Option<(String
 pub(crate) fn extract_cover_from_container(container: &Element) -> Option<String> {
 	if let Some(images) = container.select("img") {
 		for image in images {
-			let Some(url) = image_url(&image) else {
+			let Some(url) = cover_image_url(&image) else {
 				continue;
 			};
 			if is_likely_cover_url(&url) {
@@ -501,6 +562,7 @@ pub(crate) fn parse_manga_chapters_from_json(
 	let key_marker = manga_key
 		.filter(|value| !value.is_empty())
 		.map(|value| format!("/manga/{value}/"));
+	let fallback_date = current_date();
 	let mut chapters = Vec::new();
 
 	for row in rows {
@@ -541,7 +603,7 @@ pub(crate) fn parse_manga_chapters_from_json(
 			.as_ref()
 			.map(|value| normalize_text(value))
 			.unwrap_or_default();
-		let date_uploaded = extract_date_token(&meta).and_then(|value| parse_pt_br_date(&value));
+		let date_uploaded = Some(chapter_date_from_text(&meta, fallback_date));
 		let chapter_number = parse_chapter_number(&title, &url).or_else(|| {
 			row.search
 				.as_ref()
@@ -622,6 +684,7 @@ pub(crate) fn parse_manga_chapters_from_links(
 	document: &Document,
 	manga_key: Option<&str>,
 ) -> Vec<Chapter> {
+	let fallback_date = current_date();
 	let mut chapters = Vec::new();
 	let key_marker = manga_key
 		.filter(|value| !value.is_empty())
@@ -673,13 +736,12 @@ pub(crate) fn parse_manga_chapters_from_links(
 				continue;
 			}
 
-			let date_uploaded = link
+			let date_text = link
 				.select_first(".mtx-chapter-meta, .mt-manga-catalog-card__chapter-side span, .chapter-release-date, .font-meta")
 				.and_then(|element| element.text())
 				.map(|value| normalize_text(&value))
-				.and_then(|value| extract_date_token(&value))
-				.and_then(|value| parse_pt_br_date(&value))
-				.or_else(|| extract_date_token(&link_text).and_then(|value| parse_pt_br_date(&value)));
+				.unwrap_or_else(|| link_text.clone());
+			let date_uploaded = Some(chapter_date_from_text(&date_text, fallback_date));
 
 			let chapter_number = parse_chapter_number(&title, &url)
 				.or_else(|| parse_chapter_number(&link_text, &url));
