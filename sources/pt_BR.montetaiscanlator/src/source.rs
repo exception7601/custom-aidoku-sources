@@ -2,7 +2,7 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Manga,
 	MangaPageResult, Page, PageContent, PageContext, Result, Source,
 	alloc::{String, Vec},
-	imports::net::Request,
+	imports::{html::Document, net::Request},
 	prelude::*,
 };
 
@@ -15,6 +15,67 @@ use crate::{
 };
 
 pub(crate) struct MonteTaiScanlator;
+
+fn is_gif_url(url: &str) -> bool {
+	let lower = url
+		.split('?')
+		.next()
+		.unwrap_or(url)
+		.split('#')
+		.next()
+		.unwrap_or(url)
+		.to_lowercase();
+	lower.ends_with(".gif")
+}
+
+pub(crate) fn update_manga_from_document(
+	mut manga: Manga,
+	html: &Document,
+	needs_details: bool,
+	needs_chapters: bool,
+) -> Manga {
+	if needs_details {
+		if let Some(title) = parse_manga_title(html) {
+			manga.title = title;
+		}
+		if let Some(cover) = parse_manga_cover(html) {
+			if manga.cover.is_none() || is_gif_url(&cover) {
+				manga.cover = Some(cover);
+			}
+		}
+		if let Some(description) = parse_manga_description(html) {
+			manga.description = Some(description);
+		}
+
+		let tags = parse_manga_tags(html);
+		if !tags.is_empty() {
+			manga.tags = Some(tags);
+		}
+
+		let authors = parse_text_values(html, ".post-content_item.mg_author .summary-content a");
+		if !authors.is_empty() {
+			manga.authors = Some(authors);
+		}
+
+		let artists = parse_text_values(html, ".post-content_item.mg_artists .summary-content a");
+		if !artists.is_empty() {
+			manga.artists = Some(artists);
+		}
+
+		manga.status = parse_manga_status(html);
+	}
+
+	if needs_chapters {
+		let manga_key = (!manga.key.is_empty()).then_some(manga.key.as_str());
+		let chapters = parse_manga_chapters(html, manga_key);
+		println!("[montetai] manga_update_chapters total={}", chapters.len());
+		if !chapters.is_empty() {
+			manga.chapters = Some(chapters);
+		}
+	}
+
+	manga
+}
 
 impl Source for MonteTaiScanlator {
 	fn new() -> Self {
@@ -80,47 +141,7 @@ impl Source for MonteTaiScanlator {
 		}
 		manga.url = Some(manga_url);
 
-		if needs_details {
-			if let Some(title) = parse_manga_title(&html) {
-				manga.title = title;
-			}
-			if manga.cover.is_none() {
-				if let Some(cover) = parse_manga_cover(&html) {
-					manga.cover = Some(cover);
-				}
-			}
-			if let Some(description) = parse_manga_description(&html) {
-				manga.description = Some(description);
-			}
-
-			let tags = parse_manga_tags(&html);
-			if !tags.is_empty() {
-				manga.tags = Some(tags);
-			}
-
-			let authors =
-				parse_text_values(&html, ".post-content_item.mg_author .summary-content a");
-			if !authors.is_empty() {
-				manga.authors = Some(authors);
-			}
-
-			let artists =
-				parse_text_values(&html, ".post-content_item.mg_artists .summary-content a");
-			if !artists.is_empty() {
-				manga.artists = Some(artists);
-			}
-
-			manga.status = parse_manga_status(&html);
-		}
-
-		if needs_chapters {
-			let manga_key = (!manga.key.is_empty()).then_some(manga.key.as_str());
-			let chapters = parse_manga_chapters(&html, manga_key);
-			println!("[montetai] manga_update_chapters total={}", chapters.len());
-			if !chapters.is_empty() {
-				manga.chapters = Some(chapters);
-			}
-		}
+		manga = update_manga_from_document(manga, &html, needs_details, needs_chapters);
 
 		println!(
 			"[montetai] manga_update_done title={} tags={} authors={} artists={} has_desc={} status={:?}",

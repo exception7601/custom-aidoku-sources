@@ -1,6 +1,6 @@
 use aidoku::{
 	Chapter, Manga,
-	alloc::String,
+	alloc::{String, Vec},
 	imports::{
 		html::{Document, Element},
 		std::parse_local_date,
@@ -10,9 +10,112 @@ use aidoku::{
 
 use crate::BASE_URL;
 
+fn url_path_segments(url: &str) -> Vec<String> {
+	let cleaned = sanitize_url(url);
+	let mut path = cleaned.as_str();
+	if let Some((_, rest)) = path.split_once("://") {
+		path = rest;
+		if let Some((_, rest)) = path.split_once('/') {
+			path = rest;
+		} else {
+			path = "";
+		}
+	} else if path.starts_with("//") {
+		let stripped = &path[2..];
+		if let Some((_, rest)) = stripped.split_once('/') {
+			path = rest;
+		} else {
+			path = "";
+		}
+	} else if path.starts_with('/') {
+		path = path.trim_start_matches('/');
+	}
+	let path = path.split('?').next().unwrap_or(path);
+	let path = path.split('#').next().unwrap_or(path);
+	path.split('/')
+		.filter(|segment| !segment.is_empty())
+		.map(String::from)
+		.collect()
+}
+
+fn path_segment_is_noise(segment: &str) -> bool {
+	let lower = normalize_text(segment).to_lowercase();
+	if lower.is_empty() {
+		return true;
+	}
+	if lower.chars().all(|ch| ch.is_ascii_digit()) {
+		return true;
+	}
+	matches!(
+		lower.as_str(),
+		"page"
+			| "perfil"
+			| "login" | "register"
+			| "cadastro"
+			| "bookmarks"
+			| "favoritos"
+			| "historico"
+			| "histórico"
+			| "history"
+			| "search"
+			| "buscar"
+			| "tag" | "tags"
+			| "categoria"
+			| "categorias"
+			| "author"
+			| "autores"
+			| "feed" | "manga"
+			| "post" | "home"
+			| "index" | "inicio"
+			| "privacy"
+			| "privacy-policy"
+			| "privacidade"
+			| "politica"
+			| "politica-de-privacidade"
+			| "dmca" | "terms"
+			| "termos"
+			| "about" | "sobre"
+			| "contact"
+			| "contato"
+			| "cookies"
+			| "cookie"
+	) || lower.starts_with("wp-")
+		|| lower.starts_with("feed/")
+		|| lower.starts_with("wp-json")
+}
+
+fn is_supported_site_url(url: &str) -> bool {
+	let cleaned = sanitize_url(url);
+	if cleaned.starts_with('/') || cleaned.starts_with("manga/") {
+		return true;
+	}
+
+	let Some(rest) = cleaned
+		.strip_prefix("https://")
+		.or_else(|| cleaned.strip_prefix("http://"))
+		.or_else(|| cleaned.strip_prefix("//"))
+	else {
+		return false;
+	};
+	let host = rest.split('/').next().unwrap_or_default().to_lowercase();
+	host == "montetaiscanlator.xyz" || host == "www.montetaiscanlator.xyz"
+}
+
+fn path_segment_looks_like_slug(segment: &str) -> bool {
+	let lower = normalize_text(segment).to_lowercase();
+	if path_segment_is_noise(&lower) || lower.starts_with("capitulo-") || lower.contains('.') {
+		return false;
+	}
+	let alpha_count = lower.chars().filter(|ch| ch.is_ascii_alphabetic()).count();
+	alpha_count >= 4 && (lower.contains('-') || lower.contains('_') || lower.len() >= 4)
+}
+
 pub(crate) fn manga_url(manga: &Manga) -> String {
 	if let Some(url) = manga.url.as_ref() {
-		if is_manga_url(url) || is_chapter_url(url) || url.contains("/manga/") {
+		if is_manga_url(url) || is_chapter_url(url) {
+			return absolute_url(url);
+		}
+		if url.starts_with("http://") || url.starts_with("https://") || url.starts_with('/') {
 			return absolute_url(url);
 		}
 	}
@@ -32,7 +135,10 @@ pub(crate) fn manga_url(manga: &Manga) -> String {
 
 pub(crate) fn chapter_url(manga: &Manga, chapter: &Chapter) -> String {
 	if let Some(url) = chapter.url.as_ref() {
-		if is_chapter_url(url) || url.contains("/capitulo-") {
+		if is_chapter_url(url) || url.starts_with("http://") || url.starts_with("https://") {
+			return absolute_url(url);
+		}
+		if url.starts_with('/') {
 			return absolute_url(url);
 		}
 	}
@@ -159,7 +265,11 @@ pub(crate) fn is_likely_cover_url(url: &str) -> bool {
 	if lower.is_empty() || !lower.starts_with("http") {
 		return false;
 	}
-	if lower.contains("logo-monte-tai") || lower.contains("favicon") {
+	if lower.contains("logo-monte-tai")
+		|| lower.contains("favicon")
+		|| lower.contains("/reactions/")
+		|| lower.contains("graphstyle-comments")
+	{
 		return false;
 	}
 	if lower.contains("/wp-content/uploads/") {
@@ -223,13 +333,11 @@ pub(crate) fn has_image_extension(url: &str) -> bool {
 }
 
 pub(crate) fn is_manga_url(url: &str) -> bool {
-	let cleaned = sanitize_url(url);
-	cleaned.contains("/manga/") && !cleaned.contains("/capitulo-") && !cleaned.ends_with("/manga/")
+	manga_key_from_url(url).is_some() && !is_chapter_url(url)
 }
 
 pub(crate) fn is_chapter_url(url: &str) -> bool {
-	let cleaned = sanitize_url(url);
-	cleaned.contains("/manga/") && cleaned.contains("/capitulo-")
+	chapter_key_from_url(url).is_some()
 }
 
 pub(crate) fn looks_like_series_title(text: &str) -> bool {
@@ -257,35 +365,54 @@ pub(crate) fn looks_like_series_title(text: &str) -> bool {
 }
 
 pub(crate) fn manga_key_from_url(url: &str) -> Option<String> {
-	let cleaned = sanitize_url(url);
-	let marker = "/manga/";
-	let start = cleaned.find(marker)? + marker.len();
-	let slug = cleaned[start..]
-		.split('/')
-		.next()
-		.unwrap_or_default()
-		.trim();
-	if slug.is_empty() {
-		None
+	if !is_supported_site_url(url) {
+		return None;
+	}
+	let segments = url_path_segments(url);
+	if segments.is_empty() {
+		return None;
+	}
+
+	if let Some(index) = segments.iter().position(|segment| {
+		normalize_text(segment)
+			.to_lowercase()
+			.starts_with("capitulo-")
+	}) {
+		if index == 0 {
+			return None;
+		}
+		let candidate = normalize_text(&segments[index - 1]);
+		if path_segment_looks_like_slug(&candidate) {
+			return Some(candidate);
+		}
+		return None;
+	}
+
+	let Some(last) = segments.last() else {
+		return None;
+	};
+	let candidate = normalize_text(last);
+	if path_segment_looks_like_slug(&candidate) {
+		Some(candidate)
 	} else {
-		Some(String::from(slug))
+		None
 	}
 }
 
 pub(crate) fn chapter_key_from_url(url: &str) -> Option<String> {
-	let cleaned = sanitize_url(url);
-	let marker = "/manga/";
-	let start = cleaned.find(marker)?;
-	let path = cleaned[start + 1..]
-		.split('?')
-		.next()
-		.unwrap_or_default()
-		.trim_end_matches('/');
-	if path.contains("/capitulo-") {
-		Some(String::from(path))
-	} else {
-		None
+	if !is_supported_site_url(url) {
+		return None;
 	}
+	let segments = url_path_segments(url);
+	let index = segments.iter().position(|segment| {
+		normalize_text(segment)
+			.to_lowercase()
+			.starts_with("capitulo-")
+	})?;
+	if index == 0 {
+		return None;
+	}
+	Some(segments[..=index].join("/"))
 }
 
 pub(crate) fn chapter_title_from_text(text: &str) -> String {

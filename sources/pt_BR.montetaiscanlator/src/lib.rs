@@ -9,7 +9,7 @@ mod source;
 mod utils;
 
 pub(crate) use scraper::*;
-pub(crate) use source::MonteTaiScanlator;
+pub(crate) use source::{MonteTaiScanlator, update_manga_from_document};
 pub(crate) use utils::*;
 
 register_source!(MonteTaiScanlator, DeepLinkHandler, ImageRequestProvider);

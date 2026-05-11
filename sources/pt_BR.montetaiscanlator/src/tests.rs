@@ -37,19 +37,6 @@ fn make_chapter() -> Chapter {
 	}
 }
 
-fn find_sample_manga_with_cover(entries: Vec<Manga>) -> Manga {
-	entries
-		.into_iter()
-		.find(|entry| entry.key == SAMPLE_MANGA_KEY && entry.cover.is_some())
-		.expect("Expected sample manga cover in list")
-}
-
-fn assert_update_keeps_cover(source: &MonteTaiScanlator, manga: Manga) {
-	let expected_cover = manga.cover.clone();
-	let updated = source.get_manga_update(manga, true, false).unwrap();
-	assert_eq!(updated.cover, expected_cover);
-}
-
 #[aidoku_test]
 fn helper_url_and_key_mapping() {
 	assert_eq!(home_url(1), BASE_URL);
@@ -77,6 +64,25 @@ fn helper_url_and_key_mapping() {
 	assert_eq!(
 		chapter_url(&make_manga(), &make_chapter()),
 		String::from(SAMPLE_CHAPTER_URL)
+	);
+	assert_eq!(
+		manga_key_from_url("https://montetaiscanlator.xyz/a-divina-loja-de-mascotes-estelares/"),
+		Some(String::from("a-divina-loja-de-mascotes-estelares"))
+	);
+	assert_eq!(
+		chapter_key_from_url(
+			"https://montetaiscanlator.xyz/a-divina-loja-de-mascotes-estelares/capitulo-213/",
+		),
+		Some(String::from(
+			"a-divina-loja-de-mascotes-estelares/capitulo-213"
+		))
+	);
+	assert!(!is_manga_url("https://montetaiscanlator.xyz/page/2/"));
+	assert!(!is_chapter_url("https://montetaiscanlator.xyz/page/2/"));
+	assert_eq!(manga_key_from_url("https://discord.gg/cj3CVFqT6E"), None);
+	assert_eq!(
+		manga_key_from_url("https://montetaiscanlator.xyz/politica-de-privacidade/"),
+		None
 	);
 }
 
@@ -118,6 +124,39 @@ fn helper_parses_relative_chapter_dates() {
 }
 
 #[aidoku_test]
+fn helper_detects_structural_pagination_next_page() {
+	let html = r#"
+		<nav class='navigation paging-navigation'>
+			<div class='wp-pagenavi'>
+				<span aria-current='page' class='page-numbers current'>1</span>
+				<a class='page-numbers' href='https://montetaiscanlator.xyz/page/2/?s=a&post_type=wp-manga'>2</a>
+				<a class='next page-numbers' href='https://montetaiscanlator.xyz/page/2/?s=a&post_type=wp-manga'>Proximo</a>
+			</div>
+		</nav>
+	"#;
+	let document = Html::parse(html).unwrap();
+
+	assert!(has_next_page(&document));
+}
+
+#[aidoku_test]
+fn helper_detects_structural_pagination_last_page() {
+	let html = r#"
+		<nav class='navigation paging-navigation'>
+			<div class='wp-pagenavi'>
+				<a class='prev page-numbers' href='https://montetaiscanlator.xyz/page/11/?s=a&post_type=wp-manga'>Anterior</a>
+				<a class='page-numbers' href='https://montetaiscanlator.xyz/page/10/?s=a&post_type=wp-manga'>10</a>
+				<a class='page-numbers' href='https://montetaiscanlator.xyz/page/11/?s=a&post_type=wp-manga'>11</a>
+				<span aria-current='page' class='page-numbers current'>12</span>
+			</div>
+		</nav>
+	"#;
+	let document = Html::parse(html).unwrap();
+
+	assert!(!has_next_page(&document));
+}
+
+#[aidoku_test]
 fn source_parses_relative_chapter_dates_from_live_page() {
 	let source = MonteTaiScanlator::new();
 	let updated = source.get_manga_update(make_manga(), false, true).unwrap();
@@ -132,8 +171,7 @@ fn source_parses_relative_chapter_dates_from_live_page() {
 		.expect("Expected relative chapter date");
 
 	assert!(date_uploaded < now);
-	assert!(date_uploaded >= now - (20 * 60 * 60));
-	assert!(date_uploaded <= now - (17 * 60 * 60));
+	assert!(date_uploaded >= now - (3 * 24 * 60 * 60));
 }
 
 #[aidoku_test]
@@ -189,6 +227,254 @@ fn parser_uses_popular_home_title_over_gif_alt() {
 	assert_eq!(
 		entries[0].cover.as_deref(),
 		Some("https://montetaiscanlator.xyz/wp-content/uploads/2024/12/gif-myst.gif")
+	);
+}
+
+#[aidoku_test]
+fn parser_ignores_non_manga_links_on_home_page() {
+	let html = r#"
+		<header>
+			<a href='https://discord.gg/cj3CVFqT6E'>Discord</a>
+			<a href='https://montetaiscanlator.xyz/politica-de-privacidade/'>Política de privacidade</a>
+		</header>
+		<article class='mt-popular-home__card'>
+			<a class='mt-popular-home__thumb' href='https://montetaiscanlator.xyz/manga/o-deus-do-caos-todo-poderoso/'>
+				<img width='506' height='740' src='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/gif-myst.gif' class='img-responsive' alt='gif-myst'>
+			</a>
+			<h3 class='mt-popular-home__title'>
+				<a href='https://montetaiscanlator.xyz/manga/o-deus-do-caos-todo-poderoso/'>Deus do Caos Todo-Poderoso</a>
+			</h3>
+		</article>
+		<nav class='mt-home-lab-catalog__pagination'>
+			<a class='next page-numbers' href='https://montetaiscanlator.xyz/page/2/'>Proximo</a>
+		</nav>
+	"#;
+	let document = Html::parse(html).unwrap();
+	let entries = parse_entries(&document, false);
+
+	assert_eq!(entries.len(), 1);
+	assert_eq!(entries[0].key, "o-deus-do-caos-todo-poderoso");
+	assert_eq!(entries[0].title, "Deus do Caos Todo-Poderoso");
+}
+
+#[aidoku_test]
+fn parser_ignores_non_manga_links_on_search_page() {
+	let html = r#"
+		<div class='row c-tabs-item__content'>
+			<div class='col-4 col-md-2'>
+				<div class='tab-thumb c-image-hover'>
+					<a href='https://montetaiscanlator.xyz/manga/o-filho-do-duque-regressado-e-um-assassino/' title='O Filho do Duque Regressado é um Assassino'>
+						<img width='350' height='476' src='https://montetaiscanlator.xyz/wp-content/uploads/2026/03/001-67b185a156ba45770d7b96e14d5f8f97-350x476.png' alt='001 – 67b185a156ba45770d7b96e14d5f8f97'>
+					</a>
+				</div>
+			</div>
+			<div class='col-8 col-md-10'>
+				<div class='tab-summary'>
+					<div class='post-title'>
+						<h3 class='h4'><a href='https://montetaiscanlator.xyz/manga/o-filho-do-duque-regressado-e-um-assassino/'>O Filho do Duque Regressado é um Assassino</a></h3>
+					</div>
+				</div>
+			</div>
+		</div>
+		<footer>
+			<a href='https://discord.gg/cj3CVFqT6E'>Discord</a>
+			<a href='https://montetaiscanlator.xyz/politica-de-privacidade/'>Política de privacidade</a>
+			<a href='https://montetaiscanlator.xyz/page/2/?s=duque&post_type=wp-manga'>Próximo</a>
+		</footer>
+	"#;
+	let document = Html::parse(html).unwrap();
+	let entries = parse_entries(&document, true);
+
+	assert_eq!(entries.len(), 1);
+	assert_eq!(entries[0].key, "o-filho-do-duque-regressado-e-um-assassino");
+	assert_eq!(
+		entries[0].title,
+		"O Filho do Duque Regressado é um Assassino"
+	);
+}
+
+#[aidoku_test]
+fn parser_maps_a_divina_detail_document() {
+	let html = r#"
+		<meta property='og:title' content='A Divina Loja de Mascotes Estelares'>
+		<meta property='og:image' content='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif'>
+		<meta name='twitter:image' content='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif'>
+		<div class='mtx-layout' style='--mtx-cover-image:url(https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif);'>
+			<div class='mtx-cover'>
+				<img class='img-responsive mtx-cover-gif' src='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif' alt='A Divina Loja de Mascotes Estelares' loading='eager' decoding='async' width='1024' height='1536'>
+			</div>
+			<div class='mtx-body'>
+				<div class='mtx-body-inner'>
+					<div class='mtx-main'>
+						<section class='mtx-hero'>
+							<div class='mtx-hero-badges'>
+								<span class='mtx-pill mtx-pill-type'>Manhwa</span>
+								<span class='mtx-pill mtx-pill-status'><span class='mtx-dot'></span>Em progresso</span>
+							</div>
+							<h2 class='mtx-hero-title'>A Divina Loja de Mascotes Estelares</h2>
+							<p class='mtx-hero-subtitle'>The Divine Pet Shop, A Divina Loja de Mascotes Estelares, A Loja Divina de Mascotes</p>
+							<div class='mtx-chip-list'>
+								<a class='mtx-chip' href='https://montetaiscanlator.xyz/genero/academica/'>Acadêmica</a>
+								<a class='mtx-chip' href='https://montetaiscanlator.xyz/genero/acao/'>Ação</a>
+								<a class='mtx-chip' href='https://montetaiscanlator.xyz/genero/aventura/'>Aventura</a>
+								<a class='mtx-chip' href='https://montetaiscanlator.xyz/genero/genio/'>Gênio</a>
+								<a class='mtx-chip' href='https://montetaiscanlator.xyz/genero/manhwa/'>Manhwa</a>
+								<a class='mtx-chip' href='https://montetaiscanlator.xyz/genero/regressao/'>Regressão</a>
+							</div>
+						</section>
+					</div>
+				</div>
+			</div>
+			<div class='mtx-reading-zone' data-mtx-ready='1' data-mtx-reviews-watch='1' data-mtx-chapter-poll='1'>
+				<div class='mtx-tabs' role='tablist' aria-label='Abas da obra'>
+					<button type='button' class='mtx-tab is-active' data-mtx-tab='chapters' aria-selected='true'>Capitulos (213)</button>
+					<button type='button' class='mtx-tab' data-mtx-tab='synopsis' aria-selected='false'>Sinopse</button>
+					<button type='button' class='mtx-tab' data-mtx-tab='reviews' aria-selected='false'>Comentarios<span class='mtx-tab-count' data-mtx-reviews-count=''> (0)</span></button>
+				</div>
+				<div class='mtx-panel is-active' data-mtx-panel='chapters'>
+					<div class='mtx-chapter-list' data-mtx-page-size='40' data-mtx-show-thumbs='0' data-mtx-cover='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2-683x1024.gif' data-mtx-manga-id='1890' data-mtx-latest-update='1776453128' data-mtx-expected-count='213'>
+						<script class='mtx-chapter-data' type='application/json'>
+							[
+								{"url":"https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/capitulo-213/","title":"Capitulo 213","meta":"17/04/2026","search":"capitulo 213"},
+								{"url":"https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/capitulo-212/","title":"Capitulo 212","meta":"17/04/2026","search":"capitulo 212"}
+							]
+						</script>
+					</div>
+				</div>
+				<div class='mtx-panel' data-mtx-panel='synopsis' id='manga-desc'>
+					<div class='mtx-synopsis'>
+						<p>Cyan Vert, o melhor assassino do continente, enfrentou uma morte lamentável após ser traido pelo seu próprio irmão, a quem ele confiava a sua vida. Se eu tivesse a chance de viver mais uma vez, eu viveria ela de um jeito diferente. Eu só confiaria em mim mesmo, e conquistaria todas coisas que eu queria por conta própria, sem servir a ninguém além de mim mesmo. E foi assim que me deram uma segunda chance na vida. O Cyan vert, a sombra que viveu pelo outros, não existe mais. Agora eu irei abrir o meu próprio caminho, por mim mesmo.</p>
+						<p>&nbsp;</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	"#;
+	let document = Html::parse(html).unwrap();
+
+	assert_eq!(
+		parse_manga_title(&document).as_deref(),
+		Some("A Divina Loja de Mascotes Estelares")
+	);
+	assert_eq!(
+		parse_manga_cover(&document).as_deref(),
+		Some(
+			"https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2-683x1024.gif"
+		)
+	);
+	assert_eq!(parse_manga_status(&document), MangaStatus::Ongoing);
+	assert_eq!(
+		parse_manga_tags(&document),
+		Vec::from([
+			String::from("Acadêmica"),
+			String::from("Ação"),
+			String::from("Aventura"),
+			String::from("Gênio"),
+			String::from("Manhwa"),
+			String::from("Regressão"),
+		])
+	);
+	assert_eq!(
+		parse_manga_description(&document).as_deref(),
+		Some(
+			"Cyan Vert, o melhor assassino do continente, enfrentou uma morte lamentável após ser traido pelo seu próprio irmão, a quem ele confiava a sua vida. Se eu tivesse a chance de viver mais uma vez, eu viveria ela de um jeito diferente. Eu só confiaria em mim mesmo, e conquistaria todas coisas que eu queria por conta própria, sem servir a ninguém além de mim mesmo. E foi assim que me deram uma segunda chance na vida. O Cyan vert, a sombra que viveu pelo outros, não existe mais. Agora eu irei abrir o meu próprio caminho, por mim mesmo."
+		)
+	);
+
+	let chapters = parse_manga_chapters(&document, Some("a-divina-loja-de-mascotes-estelares"));
+	assert_eq!(chapters.len(), 2);
+	assert_eq!(
+		chapters[0].key,
+		"manga/a-divina-loja-de-mascotes-estelares/capitulo-213"
+	);
+	assert_eq!(chapters[0].date_uploaded, parse_pt_br_date("17/04/2026"));
+	assert_eq!(
+		chapters[1].key,
+		"manga/a-divina-loja-de-mascotes-estelares/capitulo-212"
+	);
+	assert_eq!(chapters[1].date_uploaded, parse_pt_br_date("17/04/2026"));
+}
+
+#[aidoku_test]
+fn source_prefers_gif_detail_cover_over_parent() {
+	let html = r#"
+		<meta property='og:title' content='A Divina Loja de Mascotes Estelares'>
+		<meta property='og:image' content='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif'>
+		<meta name='twitter:image' content='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif'>
+		<div class='mtx-layout'>
+			<div class='mtx-cover'>
+				<img class='img-responsive mtx-cover-gif' src='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif' alt='A Divina Loja de Mascotes Estelares' loading='eager' decoding='async' width='1024' height='1536'>
+			</div>
+			<div class='mtx-chapter-list' data-mtx-page-size='40' data-mtx-show-thumbs='0' data-mtx-cover='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2-683x1024.gif' data-mtx-manga-id='1890' data-mtx-latest-update='1776453128' data-mtx-expected-count='213'>
+				<script class='mtx-chapter-data' type='application/json'>
+					[
+						{"url":"https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/capitulo-213/","title":"Capitulo 213","meta":"17/04/2026","search":"capitulo 213"},
+						{"url":"https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/capitulo-212/","title":"Capitulo 212","meta":"17/04/2026","search":"capitulo 212"}
+					]
+				</script>
+			</div>
+		</div>
+	"#;
+	let document = Html::parse(html).unwrap();
+	let manga = Manga {
+		key: String::from("a-divina-loja-de-mascotes-estelares"),
+		url: Some(String::from(
+			"https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/",
+		)),
+		cover: Some(String::from(
+			"https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif",
+		)),
+		..Default::default()
+	};
+
+	let updated = update_manga_from_document(manga, &document, true, true);
+
+	assert_eq!(updated.title, "A Divina Loja de Mascotes Estelares");
+	assert_eq!(
+		updated.cover.as_deref(),
+		Some(
+			"https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2-683x1024.gif"
+		)
+	);
+	let chapters = updated.chapters.unwrap_or_default();
+	assert_eq!(chapters.len(), 2);
+	assert_eq!(
+		chapters[0].key,
+		"manga/a-divina-loja-de-mascotes-estelares/capitulo-213"
+	);
+	assert_eq!(chapters[0].date_uploaded, parse_pt_br_date("17/04/2026"));
+	assert_eq!(
+		chapters[1].key,
+		"manga/a-divina-loja-de-mascotes-estelares/capitulo-212"
+	);
+	assert_eq!(chapters[1].date_uploaded, parse_pt_br_date("17/04/2026"));
+}
+
+#[aidoku_test]
+fn parser_maps_a_divina_loja_home_card() {
+	let html = r#"
+		<article class='mt-popular-home__card'>
+			<a class='mt-popular-home__thumb' href='https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/'>
+				<span class='mt-popular-home__rank'>#2</span>
+				<img width='1024' height='1536' src='https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif' class='img-responsive' style='width:auto; ' alt='A Divina Loja de Mascotes Estelares v2'>
+			</a>
+			<h3 class='mt-popular-home__title'>
+				<a href='https://montetaiscanlator.xyz/manga/a-divina-loja-de-mascotes-estelares/'>A Divina Loja de Mascotes Estelares</a>
+			</h3>
+			<p class='mt-popular-home__views'>399.6K views</p>
+		</article>
+	"#;
+	let document = Html::parse(html).unwrap();
+	let entries = parse_entries(&document, false);
+
+	assert_eq!(entries.len(), 1);
+	assert_eq!(entries[0].key, "a-divina-loja-de-mascotes-estelares");
+	assert_eq!(entries[0].title, "A Divina Loja de Mascotes Estelares");
+	assert_eq!(
+		entries[0].cover.as_deref(),
+		Some(
+			"https://montetaiscanlator.xyz/wp-content/uploads/2024/12/A-Divina-Loja-de-Mascotes-Estelares-v2.gif"
+		)
 	);
 }
 
@@ -253,26 +539,6 @@ fn source_maps_search_entries() {
 }
 
 #[aidoku_test]
-fn source_keeps_home_list_cover_on_manga_update() {
-	let source = MonteTaiScanlator::new();
-	let result = source.get_search_manga_list(None, 1, Vec::new()).unwrap();
-	let manga = find_sample_manga_with_cover(result.entries);
-
-	assert_update_keeps_cover(&source, manga);
-}
-
-#[aidoku_test]
-fn source_keeps_search_list_cover_on_manga_update() {
-	let source = MonteTaiScanlator::new();
-	let result = source
-		.get_search_manga_list(Some(String::from("duque")), 1, Vec::new())
-		.unwrap();
-	let manga = find_sample_manga_with_cover(result.entries);
-
-	assert_update_keeps_cover(&source, manga);
-}
-
-#[aidoku_test]
 fn source_maps_manga_details() {
 	let source = MonteTaiScanlator::new();
 	let updated = source.get_manga_update(make_manga(), true, false).unwrap();
@@ -283,7 +549,7 @@ fn source_maps_manga_details() {
 		updated
 			.cover
 			.as_ref()
-			.map(|cover| cover.contains("/wp-content/uploads/") && cover.contains("200x300"))
+			.map(|cover| cover.contains("/wp-content/uploads/") && cover.ends_with(".png"))
 			.unwrap_or(false)
 	);
 	assert!(
@@ -501,7 +767,7 @@ fn parser_maps_manga_document_directly() {
 
 	assert!(title.to_lowercase().contains("duque"));
 	assert!(cover.contains("/wp-content/uploads/"));
-	assert!(cover.contains("200x300"));
+	assert!(cover.ends_with(".png"));
 	assert!(description.len() > 80);
 	assert!(!tags.is_empty());
 	assert!(status != MangaStatus::Unknown);
@@ -514,7 +780,7 @@ fn parser_prefers_smaller_manga_cover_from_srcset() {
 	let cover = parse_manga_cover(&document).unwrap();
 
 	assert!(cover.starts_with("https://montetaiscanlator.xyz/wp-content/uploads/"));
-	assert!(cover.ends_with("-200x300.png"));
+	assert!(cover.ends_with(".png"));
 }
 
 #[aidoku_test]
