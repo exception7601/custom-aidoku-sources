@@ -1,0 +1,4 @@
+/target
+/sources/*/public/
+/sources/*/package.aix
+/sources/*/target/

@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "pt-br.montetai-scanlator",
+		"name": "montetai scanlator",
+		"version": 8,
+		"url": "https://montetaiscanlator.xyz",
+		"contentRating": 0,
+		"languages": [
+			"pt-br"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}

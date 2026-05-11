@@ -1,0 +1,7 @@
+[tools]
+"cargo:https://github.com/Aidoku/aidoku-rs" = { version = "latest", crate = "aidoku-cli" }
+"cargo:https://github.com/Aidoku/aidoku-rs/" = { version = "latest", crate = "aidoku-test-runner" }
+
+[settings]
+idiomatic_version_file_enable_tools = []
+experimental = true
