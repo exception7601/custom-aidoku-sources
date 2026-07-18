@@ -67,8 +67,12 @@ jobs:
         with:
           install: false
 
+      - name: Install `sccache`
+        run: |
+          mise use -g sccache@0.16.0
+
       - name: Install required tools
-        run: mise install "cargo:https://github.com/Aidoku/aidoku-rs" sccache
+        run: mise install "cargo:https://github.com/Aidoku/aidoku-rs"
 
       - name: Validate sources
         shell: bash
