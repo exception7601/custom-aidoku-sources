@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "sources/**"
-      - ".github/workflows/release.yaml"
+      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
