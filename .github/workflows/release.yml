@@ -44,7 +44,6 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            sources/**/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('sources/**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -72,6 +71,9 @@ jobs:
 
             env -C "$source_dir" cargo fmt --check
           done
+
+      - name: Clean source build outputs
+        run: find sources -mindepth 1 -maxdepth 1 -type d -exec rm -rf {}/target \;
 
       - name: Build release artifacts
         run: ./scripts/release.sh
