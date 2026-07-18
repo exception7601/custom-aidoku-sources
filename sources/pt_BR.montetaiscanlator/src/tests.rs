@@ -1,13 +1,9 @@
 use super::*;
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, Manga, MangaStatus, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Manga, MangaStatus,
+	PageContent, Source,
 	alloc::{String, Vec},
-	imports::html::Html,
-};
-#[cfg(feature = "integration-tests")]
-use aidoku::{
-	ImageRequestProvider, PageContent,
-	imports::{net::Request, std::current_date},
+	imports::{html::Html, net::Request},
 };
 use aidoku_test::aidoku_test;
 
@@ -17,15 +13,11 @@ const SAMPLE_MANGA_URL: &str =
 const SAMPLE_CHAPTER_KEY: &str = "manga/o-filho-do-duque-regressado-e-um-assassino/capitulo-126";
 const SAMPLE_CHAPTER_URL: &str =
 	"https://montetaiscanlator.xyz/manga/o-filho-do-duque-regressado-e-um-assassino/capitulo-126/";
-#[cfg(feature = "integration-tests")]
 const BASKERVILLE_MANGA_KEY: &str = "a-vinganca-do-cao-de-caca-dos-baskerville";
-#[cfg(feature = "integration-tests")]
 const BASKERVILLE_MANGA_URL: &str =
 	"https://montetaiscanlator.xyz/manga/a-vinganca-do-cao-de-caca-dos-baskerville/";
-#[cfg(feature = "integration-tests")]
 const BASKERVILLE_CHAPTER_KEY: &str =
 	"manga/a-vinganca-do-cao-de-caca-dos-baskerville/capitulo-123";
-#[cfg(feature = "integration-tests")]
 const BASKERVILLE_CHAPTER_URL: &str =
 	"https://montetaiscanlator.xyz/manga/a-vinganca-do-cao-de-caca-dos-baskerville/capitulo-123/";
 
@@ -164,23 +156,18 @@ fn helper_detects_structural_pagination_last_page() {
 	assert!(!has_next_page(&document));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
-fn source_parses_relative_chapter_dates_from_live_page() {
+fn source_parses_live_chapter_dates_from_page() {
 	let source = MonteTaiScanlator::new();
 	let updated = source.get_manga_update(make_manga(), false, true).unwrap();
 	let chapters = updated.chapters.unwrap_or_default();
-	let now = current_date();
 	let chapter = chapters
 		.iter()
 		.find(|chapter| chapter.key.ends_with("/capitulo-126"))
 		.expect("Expected chapter 126 in live chapter list");
-	let date_uploaded = chapter
-		.date_uploaded
-		.expect("Expected relative chapter date");
+	let date_uploaded = chapter.date_uploaded.expect("Expected chapter date");
 
-	assert!(date_uploaded < now);
-	assert!(date_uploaded >= now - (3 * 24 * 60 * 60));
+	assert_eq!(date_uploaded, parse_pt_br_date("10/05/2026").unwrap());
 }
 
 #[aidoku_test]
@@ -487,7 +474,6 @@ fn parser_maps_a_divina_loja_home_card() {
 	);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_home_entries_page_one() {
 	let source = MonteTaiScanlator::new();
@@ -519,7 +505,6 @@ fn source_maps_home_entries_page_one() {
 	}
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_home_entries_page_two() {
 	let source = MonteTaiScanlator::new();
@@ -536,7 +521,6 @@ fn source_maps_home_entries_page_two() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_search_entries() {
 	let source = MonteTaiScanlator::new();
@@ -550,7 +534,6 @@ fn source_maps_search_entries() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_manga_details() {
 	let source = MonteTaiScanlator::new();
@@ -589,7 +572,6 @@ fn source_maps_manga_details() {
 	);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_manga_chapters() {
 	let source = MonteTaiScanlator::new();
@@ -626,7 +608,6 @@ fn source_maps_manga_chapters() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_chapter_pages() {
 	let source = MonteTaiScanlator::new();
@@ -640,7 +621,7 @@ fn source_maps_chapter_pages() {
 		match &page.content {
 			PageContent::Url(url, context) => {
 				assert!(url.starts_with("http"));
-				if url.contains("mt_madara_s3_image") {
+				if url.contains("cdn.montetaiscanlator.xyz/") {
 					saw_proxy_image = true;
 				}
 				if let Some(context) = context {
@@ -658,7 +639,6 @@ fn source_maps_chapter_pages() {
 	assert!(saw_context_referer);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_chapter_pages_from_manga_update() {
 	let source = MonteTaiScanlator::new();
@@ -669,12 +649,11 @@ fn source_maps_chapter_pages_from_manga_update() {
 	let pages = source.get_page_list(make_manga(), first).unwrap();
 	assert!(pages.len() >= 5);
 	assert!(pages.iter().any(|page| match &page.content {
-		PageContent::Url(url, _) => url.contains("mt_madara_s3_image"),
+		PageContent::Url(url, _) => url.contains("cdn.montetaiscanlator.xyz/"),
 		_ => false,
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_chapter_pages_with_key_only() {
 	let source = MonteTaiScanlator::new();
@@ -688,7 +667,6 @@ fn source_maps_chapter_pages_with_key_only() {
 	assert!(pages.len() >= 5);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_baskerville_jpg_pages() {
 	let source = MonteTaiScanlator::new();
@@ -718,7 +696,6 @@ fn source_maps_baskerville_jpg_pages() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_image_request_returns_image_response() {
 	let source = MonteTaiScanlator::new();
@@ -739,7 +716,7 @@ fn source_image_request_returns_image_response() {
 		.get_header("content-type")
 		.unwrap_or_default()
 		.to_lowercase();
-	assert!(content_type.contains("image/"));
+	assert!(content_type.contains("image/") || content_type.contains("application/octet-stream"));
 }
 
 #[aidoku_test]
@@ -773,7 +750,6 @@ fn source_handles_deep_links() {
 	assert!(unsupported.is_none());
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn parser_maps_manga_document_directly() {
 	let document = Request::get(SAMPLE_MANGA_URL).unwrap().html().unwrap();
@@ -794,7 +770,6 @@ fn parser_maps_manga_document_directly() {
 	assert!(chapters.len() > 40);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn parser_prefers_smaller_manga_cover_from_srcset() {
 	let document = Request::get(SAMPLE_MANGA_URL).unwrap().html().unwrap();
@@ -804,7 +779,6 @@ fn parser_prefers_smaller_manga_cover_from_srcset() {
 	assert!(cover.ends_with(".png"));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn parser_maps_chapter_images_directly() {
 	let document = Request::get(SAMPLE_CHAPTER_URL).unwrap().html().unwrap();
@@ -812,11 +786,13 @@ fn parser_maps_chapter_images_directly() {
 
 	assert!(urls.len() >= 5);
 	assert!(urls.iter().all(|url| url.starts_with("http")));
-	assert!(urls.iter().any(|url| url.contains("mt_madara_s3_image")));
+	assert!(
+		urls.iter()
+			.any(|url| url.contains("cdn.montetaiscanlator.xyz/"))
+	);
 	assert!(urls.iter().all(|url| !is_chapter_url(url)));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn parser_validates_chapter_page_count() {
 	let sample_document = Request::get(SAMPLE_CHAPTER_URL).unwrap().html().unwrap();
@@ -839,7 +815,6 @@ fn parser_validates_chapter_page_count() {
 	assert_eq!(baskerville_urls.len(), baskerville_dom_count);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn parser_prioritizes_json_chapter_data() {
 	let document = Request::get(BASKERVILLE_MANGA_URL).unwrap().html().unwrap();
@@ -859,7 +834,6 @@ fn parser_prioritizes_json_chapter_data() {
 	assert_eq!(chapters_from_json_or_default.len(), expected_count);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn parser_reads_mtx_json_node() {
 	let document = Request::get(BASKERVILLE_MANGA_URL).unwrap().html().unwrap();

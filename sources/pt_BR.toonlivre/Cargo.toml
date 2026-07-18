@@ -3,9 +3,6 @@ name = "toonlivre"
 version = "0.1.0"
 edition = "2024"
 
-[features]
-integration-tests = []
-
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }

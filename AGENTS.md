@@ -42,17 +42,11 @@ Package the source.
 env -C sources/pt_BR.montetaiscanlator aidoku package
 ```
 
-Run offline source tests.
+Run source tests.
+This command runs both offline parser checks and live site integration checks.
 
 ```sh
 env -C sources/pt_BR.montetaiscanlator cargo test
-```
-
-Run integration source tests against live site data.
-Do not use these tests to gate releases.
-
-```sh
-env -C sources/pt_BR.montetaiscanlator cargo test --features integration-tests
 ```
 
 Verify the package.
@@ -92,6 +86,5 @@ Before publishing, always execute this sequence.
 
 ## Notes
 
-- `cargo test` is the offline suite and is safe for release gating.
-- `cargo test --features integration-tests` hits the live site and is for manual verification only.
+- `cargo test` runs both offline parser checks and live site integration checks.
 - Keep source logs with a stable prefix such as `[montetai]`.

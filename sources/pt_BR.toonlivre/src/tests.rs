@@ -1,19 +1,19 @@
 use super::*;
-#[cfg(feature = "integration-tests")]
-use aidoku::{Chapter, ImageRequestProvider, Manga, MangaStatus, PageContent, alloc::Vec};
-use aidoku::{DeepLinkHandler, DeepLinkResult, Source, alloc::String};
+use aidoku::{
+	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Manga, MangaStatus,
+	PageContent, Source,
+	alloc::{String, Vec},
+};
 use aidoku_test::aidoku_test;
 
 const SAMPLE_MANGA_ID: &str = "obra-dbbabf0f";
 const SAMPLE_MANGA_SLUG: &str = "contos-de-demonios-e-deuses";
-#[cfg(feature = "integration-tests")]
 const SAMPLE_MANGA_TITLE: &str = "Contos de Demônios e Deuses";
 const SAMPLE_CHAPTER_ID: &str = "cap-dd9e898d-522_5";
 const SAMPLE_CHAPTER_NUMBER: &str = "522.5";
 const SAMPLE_MANGA_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses";
 const SAMPLE_CHAPTER_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses/522.5";
 
-#[cfg(feature = "integration-tests")]
 fn make_id_manga() -> Manga {
 	Manga {
 		key: String::from(SAMPLE_MANGA_ID),
@@ -23,7 +23,6 @@ fn make_id_manga() -> Manga {
 	}
 }
 
-#[cfg(feature = "integration-tests")]
 fn make_slug_manga() -> Manga {
 	Manga {
 		key: String::from(SAMPLE_MANGA_SLUG),
@@ -33,7 +32,6 @@ fn make_slug_manga() -> Manga {
 	}
 }
 
-#[cfg(feature = "integration-tests")]
 fn make_id_chapter() -> Chapter {
 	Chapter {
 		key: String::from(SAMPLE_CHAPTER_ID),
@@ -42,7 +40,6 @@ fn make_id_chapter() -> Chapter {
 	}
 }
 
-#[cfg(feature = "integration-tests")]
 fn make_number_chapter() -> Chapter {
 	Chapter {
 		key: String::from(SAMPLE_CHAPTER_NUMBER),
@@ -99,7 +96,6 @@ fn helper_parses_deep_links() {
 	assert!(deep_link_result("https://toonlivre.net/favorites").is_none());
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn api_fetches_public_lists() {
 	let releases = fetch_releases(1, 3).unwrap();
@@ -121,7 +117,6 @@ fn api_fetches_public_lists() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn api_fetches_manga_and_reader_data() {
 	let by_id = fetch_manga_by_id(SAMPLE_MANGA_ID).unwrap();
@@ -149,7 +144,6 @@ fn api_fetches_manga_and_reader_data() {
 	);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn api_fetches_and_decrypts_chapter_pages() {
 	let chapter = fetch_chapter(SAMPLE_MANGA_ID, SAMPLE_CHAPTER_ID).unwrap();
@@ -167,7 +161,6 @@ fn api_fetches_and_decrypts_chapter_pages() {
 	assert!(!chapter.release_date.is_empty());
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_home_and_search_entries() {
 	let source = ToonLivre::new();
@@ -197,7 +190,6 @@ fn source_maps_home_and_search_entries() {
 	);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_manga_details_and_chapters_from_id() {
 	let source = ToonLivre::new();
@@ -227,7 +219,6 @@ fn source_maps_manga_details_and_chapters_from_id() {
 	assert!(chapters.iter().all(|chapter| chapter.url.is_some()));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_manga_details_and_chapters_from_slug() {
 	let source = ToonLivre::new();
@@ -247,7 +238,6 @@ fn source_maps_manga_details_and_chapters_from_slug() {
 	);
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_page_list_from_ids() {
 	let source = ToonLivre::new();
@@ -261,7 +251,6 @@ fn source_maps_page_list_from_ids() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_maps_page_list_from_slug_and_number() {
 	let source = ToonLivre::new();
@@ -275,7 +264,6 @@ fn source_maps_page_list_from_slug_and_number() {
 	}));
 }
 
-#[cfg(feature = "integration-tests")]
 #[aidoku_test]
 fn source_provides_image_requests() {
 	let source = ToonLivre::new();
