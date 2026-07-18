@@ -14,12 +14,13 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-	ACCEPT_LANGUAGE, BASE_URL, current_decryption_passphrase, percent_encode, verify_token,
+	ACCEPT_LANGUAGE, BASE_URL, current_decryption_passphrase, percent_encode,
+	request_verification_token,
 };
 
 const API_BASE: &str = "https://toonlivre.net/api";
-const API_PASS_DEFAULT: &str = "decoy99xz";
-const API_PASS_CHAPTER: &str = "auth2028xy";
+const API_SIGNATURE_DEFAULT: &str = "t8v_decoy9";
+const API_SIGNATURE_CHAPTER: &str = "t8v_authX9";
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
@@ -210,21 +211,23 @@ fn request_json<T>(url: &str, is_chapter_endpoint: bool) -> Result<T>
 where
 	T: serde::de::DeserializeOwned,
 {
+	let verification_token = request_verification_token();
+	let cookie = format!("toon_v={verification_token}");
 	let response = Request::get(url)?
 		.header("accept", "application/json, text/plain, */*")
 		.header("accept-language", ACCEPT_LANGUAGE)
 		.header("origin", BASE_URL)
 		.header("referer", BASE_URL)
-		.header("x-toon-verify", verify_token())
 		.header(
-			"toonlivre-pass",
+			"x-toon-signature",
 			if is_chapter_endpoint {
-				API_PASS_CHAPTER
+				API_SIGNATURE_CHAPTER
 			} else {
-				API_PASS_DEFAULT
+				API_SIGNATURE_DEFAULT
 			},
 		)
-		.header("cookie", &format!("toon_v={}", verify_token()))
+		.header("x-toon-verify", &verification_token)
+		.header("cookie", &cookie)
 		.send()?;
 	let status = response.status_code();
 	let data_key = response.get_header("x-toon-datakey");

@@ -65,6 +65,7 @@ fn helper_slugifies_titles_and_formats_chapters() {
 	assert!(chapter_numbers_match("05", "5"));
 	assert!(chapter_numbers_match("005", "5"));
 	assert_eq!(current_decryption_passphrase().len(), 30);
+	assert_eq!(request_verification_token().len(), 26);
 }
 
 #[aidoku_test]

@@ -16,13 +16,26 @@ const RESERVED_PATHS: [&str; 6] = [
 	"api",
 	"password-reset",
 ];
-const VERIFY_TOKEN: &str = "aidoku-toonlivre";
 const DECRYPTION_SALT: &str = "toonlivre.tv::v8";
 const DECRYPTION_SUFFIX: &str = "t17_4v19_b2";
 const DECRYPTION_PREFIX: &str = "Dealer-Critter-Catnip4";
 
-pub(crate) fn verify_token() -> &'static str {
-	VERIFY_TOKEN
+pub(crate) fn request_verification_token() -> String {
+	let seed = format!(
+		"{}:{DECRYPTION_PREFIX}:{}",
+		current_date(),
+		current_decryption_passphrase()
+	);
+	let mut hasher = Md5::new();
+	hasher.update(seed.as_bytes());
+	let digest = hasher.finalize();
+	let mut token = String::new();
+	for byte in digest.iter() {
+		token.push(hex_digit(byte >> 4));
+		token.push(hex_digit(byte & 0x0F));
+	}
+	token.truncate(26);
+	token
 }
 
 pub(crate) fn manga_url_from_slug(slug: &str) -> String {
