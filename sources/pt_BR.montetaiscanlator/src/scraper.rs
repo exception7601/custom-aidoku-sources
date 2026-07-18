@@ -660,12 +660,12 @@ pub(crate) fn parse_manga_chapters(document: &Document, manga_key: Option<&str>)
 	let mut chapters = parse_manga_chapters_from_json(document, manga_key);
 	if chapters.is_empty() {
 		chapters = parse_manga_chapters_from_links(document, manga_key);
-		println!(
+		source_log!(
 			"[montetai] chapters_parse source=links count={}",
 			chapters.len()
 		);
 	} else {
-		println!(
+		source_log!(
 			"[montetai] chapters_parse source=json count={}",
 			chapters.len()
 		);
@@ -683,7 +683,7 @@ pub(crate) fn parse_manga_chapters_from_json(
 	if rows.is_empty() {
 		return Vec::new();
 	}
-	println!("[montetai] chapters_json_rows={}", rows.len());
+	source_log!("[montetai] chapters_json_rows={}", rows.len());
 
 	let manga_key = manga_key.filter(|value| !value.is_empty());
 	let fallback_date = current_date();
@@ -744,7 +744,7 @@ pub(crate) fn parse_manga_chapters_from_json(
 		});
 	}
 
-	println!("[montetai] chapters_json_parsed={}", chapters.len());
+	source_log!("[montetai] chapters_json_parsed={}", chapters.len());
 	chapters
 }
 
@@ -766,7 +766,7 @@ fn read_mtx_chapter_json_entries_from_element(
 				.replace("&apos;", "'");
 
 			if let Ok(entries) = serde_json::from_str::<Vec<MtxChapterJsonEntry>>(&normalized) {
-				println!(
+				source_log!(
 					"[montetai] mtx_json parse=normalized count={}",
 					entries.len()
 				);
@@ -775,7 +775,7 @@ fn read_mtx_chapter_json_entries_from_element(
 				}
 			}
 			if let Ok(entries) = serde_json::from_str::<Vec<MtxChapterJsonEntry>>(&raw_json) {
-				println!("[montetai] mtx_json parse=raw count={}", entries.len());
+				source_log!("[montetai] mtx_json parse=raw count={}", entries.len());
 				if !entries.is_empty() {
 					return Some(entries);
 				}
@@ -874,7 +874,7 @@ pub(crate) fn parse_manga_chapters_from_links(
 	if let Some(body) = body_element(document) {
 		collect_chapter_links(&body, manga_key, fallback_date, &mut chapters);
 	}
-	println!("[montetai] chapters_links parsed_count={}", chapters.len());
+	source_log!("[montetai] chapters_links parsed_count={}", chapters.len());
 	chapters
 }
 
@@ -897,7 +897,7 @@ pub(crate) fn parse_chapter_page_urls(document: &Document) -> Vec<String> {
 	if let Some(body) = body_element(document) {
 		collect_chapter_page_urls(&body, &mut urls);
 	}
-	println!("[montetai] page_urls final_count={}", urls.len());
+	source_log!("[montetai] page_urls final_count={}", urls.len());
 	urls
 }
 

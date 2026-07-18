@@ -68,7 +68,7 @@ pub(crate) fn update_manga_from_document(
 	if needs_chapters {
 		let manga_key = (!manga.key.is_empty()).then_some(manga.key.as_str());
 		let chapters = parse_manga_chapters(html, manga_key);
-		println!("[montetai] manga_update_chapters total={}", chapters.len());
+		source_log!("[montetai] manga_update_chapters total={}", chapters.len());
 		if !chapters.is_empty() {
 			manga.chapters = Some(chapters);
 		}
@@ -96,7 +96,7 @@ impl Source for MonteTaiScanlator {
 			Some(search_query) => search_url(search_query, page),
 			None => home_url(page),
 		};
-		println!(
+		source_log!(
 			"[montetai] search_start page={} query={} url={}",
 			page,
 			query.as_deref().unwrap_or(""),
@@ -109,7 +109,7 @@ impl Source for MonteTaiScanlator {
 			entries = parse_entries_fallback(&html);
 		}
 		let has_next_page = has_next_page(&html);
-		println!(
+		source_log!(
 			"[montetai] search_result entries={} has_next={} fallback={}",
 			entries.len(),
 			has_next_page,
@@ -128,9 +128,12 @@ impl Source for MonteTaiScanlator {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let manga_url = manga_url(&manga);
-		println!(
+		source_log!(
 			"[montetai] manga_update_start key={} details={} chapters={} url={}",
-			manga.key, needs_details, needs_chapters, manga_url
+			manga.key,
+			needs_details,
+			needs_chapters,
+			manga_url
 		);
 		let html = Request::get(&manga_url)?.html()?;
 
@@ -143,7 +146,7 @@ impl Source for MonteTaiScanlator {
 
 		manga = update_manga_from_document(manga, &html, needs_details, needs_chapters);
 
-		println!(
+		source_log!(
 			"[montetai] manga_update_done title={} tags={} authors={} artists={} has_desc={} status={:?}",
 			manga.title,
 			manga.tags.as_ref().map(|v| v.len()).unwrap_or(0),
@@ -161,10 +164,10 @@ impl Source for MonteTaiScanlator {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let chapter_page_url = chapter_url(&manga, &chapter);
-		println!("[montetai] get_page_list chapter_url={chapter_page_url}");
+		source_log!("[montetai] get_page_list chapter_url={chapter_page_url}");
 		let html = Request::get(&chapter_page_url)?.html()?;
 		let image_urls = parse_chapter_page_urls(&html);
-		println!("[montetai] pages_found={}", image_urls.len());
+		source_log!("[montetai] pages_found={}", image_urls.len());
 		if image_urls.is_empty() {
 			bail!("No chapter images found");
 		}
@@ -213,14 +216,13 @@ impl ImageRequestProvider for MonteTaiScanlator {
 			.header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
 			.header("Referer", BASE_URL);
 
-		let mut referer_value = String::from(BASE_URL);
-		if let Some(context) = context {
-			if let Some(referer) = context.get("referer") {
-				referer_value = referer.clone();
-				request.set_header("Referer", referer.as_str());
-			}
-		}
-		println!("[montetai] image_request url={url} referer={referer_value}");
+		let referer_value = context
+			.as_ref()
+			.and_then(|ctx| ctx.get("referer"))
+			.cloned()
+			.unwrap_or_else(|| String::from(BASE_URL));
+		request.set_header("Referer", referer_value.as_str());
+		source_log!("[montetai] image_request url={url} referer={referer_value}");
 
 		Ok(request)
 	}
