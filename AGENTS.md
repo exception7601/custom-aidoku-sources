@@ -43,6 +43,13 @@ Package the source.
 env -C sources/pt_BR.montetaiscanlator aidoku package
 ```
 
+Update dependencies for one source.
+This updates that source's own `Cargo.lock`.
+
+```sh
+env -C sources/pt_BR.montetaiscanlator cargo update
+```
+
 Run source tests.
 This command runs both offline parser checks and live site integration checks.
 
@@ -88,4 +95,9 @@ Before publishing, always execute this sequence.
 ## Notes
 
 - `cargo test` runs both offline parser checks and live site integration checks.
+- Each source has its own `Cargo.lock`.
+- When `aidoku-rs` or another dependency needs to change for one source, run `cargo update` inside that source directory and commit the updated `Cargo.lock`.
+- After a dependency update, re-run `aidoku package` and `aidoku verify` for that source.
+- Release CI caches `sources/**/target/` and keys that cache from `sources/**/Cargo.lock`.
+- If a dependency fix should affect CI, confirm the relevant source's `Cargo.lock` resolved to the expected revision before changing the workflow.
 - Keep source logs with a stable prefix such as `[montetai]`.
