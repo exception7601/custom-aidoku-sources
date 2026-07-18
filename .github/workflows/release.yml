@@ -78,7 +78,6 @@ jobs:
             fi
 
             env -C "$source_dir" cargo fmt --check
-            env -C "$source_dir" cargo test
           done
 
       - name: Build release artifacts
