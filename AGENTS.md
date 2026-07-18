@@ -42,10 +42,17 @@ Package the source.
 env -C sources/pt_BR.montetaiscanlator aidoku package
 ```
 
-Run source tests.
+Run offline source tests.
 
 ```sh
 env -C sources/pt_BR.montetaiscanlator cargo test
+```
+
+Run integration source tests against live site data.
+Do not use these tests to gate releases.
+
+```sh
+env -C sources/pt_BR.montetaiscanlator cargo test --features integration-tests
 ```
 
 Verify the package.
@@ -78,10 +85,13 @@ Before publishing, always execute this sequence.
 
 1. Bump `info.version` in `sources/pt_BR.montetaiscanlator/res/source.json`.
 2. Run `env -C sources/pt_BR.montetaiscanlator cargo fmt`.
-3. Run `env -C sources/pt_BR.montetaiscanlator aidoku package`.
-4. Run `aidoku verify sources/pt_BR.montetaiscanlator/package.aix`.
-5. Run `aidoku build sources/*/package.aix --name "Aidoku Custom Sources"`.
+3. Run `env -C sources/pt_BR.montetaiscanlator cargo test`.
+4. Run `env -C sources/pt_BR.montetaiscanlator aidoku package`.
+5. Run `aidoku verify sources/pt_BR.montetaiscanlator/package.aix`.
+6. Run `aidoku build sources/*/package.aix --name "Aidoku Custom Sources"`.
 
 ## Notes
 
+- `cargo test` is the offline suite and is safe for release gating.
+- `cargo test --features integration-tests` hits the live site and is for manual verification only.
 - Keep source logs with a stable prefix such as `[montetai]`.
