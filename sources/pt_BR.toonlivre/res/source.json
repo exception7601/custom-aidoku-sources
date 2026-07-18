@@ -1,12 +1,12 @@
 {
 	"info": {
-		"id": "pt.toonlivre",
+		"id": "pt-br.toonlivre",
 		"name": "toonlivre",
-		"version": 1,
+		"version": 1784339710,
 		"url": "https://toonlivre.net",
 		"contentRating": 0,
 		"languages": [
-			"pt"
+			"pt-br"
 		]
 	}
 }

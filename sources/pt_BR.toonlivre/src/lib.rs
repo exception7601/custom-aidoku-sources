@@ -1,57 +1,19 @@
 #![no_std]
-use aidoku::{
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, Result, Source,
-	alloc::{String, Vec},
-	prelude::*,
-};
+#[allow(unused_imports)]
+use aidoku::{DeepLinkHandler, Home, ImageRequestProvider, Source, prelude::*};
 
-struct toonlivre;
+pub(crate) const BASE_URL: &str = "https://toonlivre.net";
+pub(crate) const ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,pt;q=0.8";
 
-impl Source for toonlivre {
-	fn new() -> Self {
-		Self
-	}
+mod api;
+mod source;
+mod utils;
 
-	fn get_search_manga_list(
-		&self,
-		_query: Option<String>,
-		_page: i32,
-		_filters: Vec<FilterValue>,
-	) -> Result<MangaPageResult> {
-		Err(AidokuError::Unimplemented)
-	}
+pub(crate) use api::*;
+pub(crate) use source::ToonLivre;
+pub(crate) use utils::*;
 
-	fn get_manga_update(
-		&self,
-		_manga: Manga,
-		_needs_details: bool,
-		_needs_chapters: bool,
-	) -> Result<Manga> {
-		Err(AidokuError::Unimplemented)
-	}
+register_source!(ToonLivre, DeepLinkHandler, Home, ImageRequestProvider);
 
-	fn get_page_list(&self, _manga: Manga, _chapter: Chapter) -> Result<Vec<Page>> {
-		Err(AidokuError::Unimplemented)
-	}
-}
-
-impl ListingProvider for toonlivre {
-	fn get_manga_list(&self, _listing: Listing, _page: i32) -> Result<MangaPageResult> {
-		Err(AidokuError::Unimplemented)
-	}
-}
-
-impl Home for toonlivre {
-	fn get_home(&self) -> Result<HomeLayout> {
-		Err(AidokuError::Unimplemented)
-	}
-}
-
-impl DeepLinkHandler for toonlivre {
-	fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
-		Err(AidokuError::Unimplemented)
-	}
-}
-
-register_source!(toonlivre, ListingProvider, Home, DeepLinkHandler);
+#[cfg(test)]
+mod tests;
