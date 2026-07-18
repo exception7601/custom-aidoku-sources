@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "sources/**"
+      - ".github/workflows/build.yaml"
+
   workflow_dispatch:
 
 permissions:
