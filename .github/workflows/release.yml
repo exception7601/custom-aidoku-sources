@@ -1,0 +1,88 @@
+name: Release Sources
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-pages
+  cancel-in-progress: true
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global commit.gpgsign false
+          git config --global tag.gpgsign false
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install project tools
+        uses: jdx/mise-action@v3
+
+      - name: Validate sources
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for source_dir in sources/*; do
+            if [ ! -f "$source_dir/Cargo.toml" ]; then
+              continue
+            fi
+
+            env -C "$source_dir" cargo fmt --check
+            env -C "$source_dir" cargo test
+          done
+
+      - name: Build release artifacts
+        run: ./scripts/release.sh
+
+      - name: Commit release artifacts
+        run: |
+          git add public/index.json public/index.min.json public/icons public/sources
+          git add sources/*/res/source.json
+          git commit -m "Update source releases [skip ci]"
+          git push
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: release
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
