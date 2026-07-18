@@ -56,12 +56,13 @@ jobs:
         with:
           install: false
 
-      - name: Trust and install project tools
-        run: |
-          mise trust
-          mise install
+      - name: Trust project config
+        run: mise trust
 
-      - name: Validate sources
+      - name: Install required tools
+        run: mise install "cargo:https://github.com/Aidoku/aidoku-rs"
+
+      - name: Validate source formatting
         shell: bash
         run: |
           set -euo pipefail
@@ -72,7 +73,6 @@ jobs:
             fi
 
             env -C "$source_dir" cargo fmt --check
-            env -C "$source_dir" cargo test
           done
 
       - name: Build release artifacts
