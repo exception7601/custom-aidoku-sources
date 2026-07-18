@@ -10,6 +10,24 @@
 - `public/sources/` contains packaged `.aix` outputs.
 - `public/icons/` contains icon assets copied during list build.
 
+## Creating a new source
+
+Create the source directory first.
+
+```sh
+mkdir sources/pt_BR.<Example>
+```
+
+Then initialize the source from the repo root.
+Do not use `env -C` for this step.
+Pass the destination path as the last argument.
+
+```sh
+aidoku init --name "<Example>" --url "https://<Example>.com" --content-rating safe --languages pt sources/pt_BR.<Example>
+```
+
+Replace `<Example>` and the URL with the real source values.
+
 ## Commands for sources
 
 Format the source.
