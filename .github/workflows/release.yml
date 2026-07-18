@@ -20,7 +20,7 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_CACHE_SIZE: 2G
-      SCCACHE_DIR: $HOME/.cache/sccache
+      SCCACHE_DIR: "~/.cache/sccache"
 
     steps:
       - name: Checkout repository
@@ -70,7 +70,7 @@ jobs:
       - name: Install and set up `sccache`
         run: |
           mise use -g sccache@0.16.0
-          mkdir -p "$HOME/.cache/sccache"
+          mkdir -p "~/.cache/sccache"
 
       - name: Install required tools
         run: mise install "cargo:https://github.com/Aidoku/aidoku-rs"
