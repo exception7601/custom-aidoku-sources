@@ -3,6 +3,9 @@
 /target
 .build/
 /public/
+/extrator/dist/
+/extrator/node_modules/
+/coverage/
 /sources/*/public/
 /sources/*/package.aix
 /sources/*/target/

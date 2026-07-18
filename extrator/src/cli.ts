@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+import { Command } from 'commander';
+
+import { DEFAULT_CANARY_CHAPTER_URL, DEFAULT_SITE_URL, DEFAULT_SOURCE_ID } from './constants.js';
+import { extractManifest } from './extract.js';
+import { parseManifest } from './manifest.js';
+import { validateManifestAgainstChapter } from './validate.js';
+
+export async function runCli(argv: string[]): Promise<void> {
+  const program = new Command();
+
+  program
+    .name('toonlivre-extrator')
+    .description('Extracts a declarative ToonLivre request/decrypt manifest from app bundles.')
+    .version('0.1.0');
+
+  program
+    .command('extract')
+    .description('Extract a manifest from ToonLivre HTML, bundle URLs, or local bundle files.')
+    .option('--source-id <sourceId>', 'Manifest source identifier', DEFAULT_SOURCE_ID)
+    .option('--site-url <siteUrl>', 'Base site URL', DEFAULT_SITE_URL)
+    .option('--entry-url <entryUrl>', 'HTML entry URL to inspect for script tags')
+    .option(
+      '--bundle-url <bundleUrls...>',
+      'Explicit bundle URLs to inspect. Pass the base site URL to trigger discovery.'
+    )
+    .option('--bundle-file <bundleFiles...>', 'Local bundle files to inspect')
+    .option('--out <path>', 'Write the manifest JSON to a file')
+    .option('--pretty', 'Pretty-print JSON output', true)
+    .option('--validate', 'Validate the extracted manifest against a live chapter endpoint', false)
+    .option(
+      '--canary-chapter-url <chapterUrl>',
+      'Live chapter API URL used by `--validate`',
+      DEFAULT_CANARY_CHAPTER_URL
+    )
+    .action(async (options) => {
+      const manifest = await extractManifest({
+        sourceId: options.sourceId,
+        siteUrl: options.siteUrl,
+        entryUrl: options.entryUrl,
+        bundleUrls: options.bundleUrl,
+        bundleFiles: options.bundleFile,
+      });
+
+      if (options.validate) {
+        const validation = await validateManifestAgainstChapter(manifest, options.canaryChapterUrl);
+        console.error(
+          `[validate] status=${validation.status} pageCount=${validation.pageCount} ` +
+            `dataKey=${validation.dataKey ?? 'none'}`
+        );
+      }
+
+      const serialized = JSON.stringify(manifest, null, options.pretty ? 2 : undefined);
+      if (options.out) {
+        const outputPath = resolve(options.out);
+        await writeFile(outputPath, `${serialized}\n`, 'utf8');
+        console.error(`[write] manifest saved to ${outputPath}`);
+      }
+
+      process.stdout.write(`${serialized}\n`);
+    });
+
+  program
+    .command('validate')
+    .description('Validate a saved manifest against a live ToonLivre chapter endpoint.')
+    .requiredOption('--manifest <path>', 'Manifest JSON file to load')
+    .option(
+      '--canary-chapter-url <chapterUrl>',
+      'Live chapter API URL to request',
+      DEFAULT_CANARY_CHAPTER_URL
+    )
+    .action(async (options) => {
+      const input = await readFile(resolve(options.manifest), 'utf8');
+      const manifest = parseManifest(JSON.parse(input));
+      const validation = await validateManifestAgainstChapter(manifest, options.canaryChapterUrl);
+
+      process.stdout.write(`${JSON.stringify(validation, null, 2)}\n`);
+    });
+
+  await program.parseAsync(argv);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runCli(process.argv).catch((error: unknown) => {
+    const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    console.error(message);
+    process.exitCode = 1;
+  });
+}
