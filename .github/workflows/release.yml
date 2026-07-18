@@ -12,7 +12,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: release-pages
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,8 +39,27 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Install project tools
-        uses: jdx/mise-action@v3
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            sources/**/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('sources/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Set up project tools
+        uses: jdx/mise-action@v4
+        with:
+          install: false
+
+      - name: Trust and install project tools
+        run: |
+          mise trust
+          mise install
 
       - name: Validate sources
         shell: bash
@@ -73,6 +92,22 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
+
+      - name: Upload packages artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packages
+          path: public/sources/*.aix
+          if-no-files-found: ignore
+
+      - name: Upload public artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public
+          path: public
+          if-no-files-found: ignore
 
   deploy:
     needs: release
