@@ -1,7 +1,13 @@
 [tools]
 "cargo:https://github.com/Aidoku/aidoku-rs" = { version = "latest", crate = "aidoku-cli" }
 "cargo:https://github.com/Aidoku/aidoku-rs/" = { version = "latest", crate = "aidoku-test-runner" }
+sccache = "0.16.0"
 
 [settings]
 idiomatic_version_file_enable_tools = []
 experimental = true
+
+[env]
+RUSTC_WRAPPER = "sccache"
+SCCACHE_CACHE_SIZE = "2G"
+SCCACHE_DIR = "{{config_root}}/.cache/sccache"
