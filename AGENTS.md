@@ -57,6 +57,12 @@ This command runs both offline parser checks and live site integration checks.
 env -C sources/pt_BR.montetaiscanlator cargo test
 ```
 
+Lint the source with Clippy.
+
+```sh
+env -C sources/pt_BR.montetaiscanlator cargo clippy
+```
+
 Verify the package.
 
 ```sh
