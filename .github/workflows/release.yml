@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -56,16 +54,11 @@ jobs:
         with:
           install: false
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libfontconfig1-dev
-
       - name: Trust project config
         run: mise trust
 
-      - name: Install project tools
-        run: mise install
+      - name: Install required tools
+        run: mise install "cargo:https://github.com/Aidoku/aidoku-rs"
 
       - name: Validate sources
         shell: bash
@@ -83,20 +76,21 @@ jobs:
       - name: Build release artifacts
         run: ./scripts/release.sh
 
-      - name: Commit release artifacts
+      - name: Commit release metadata
         run: |
-          git add public/index.json public/index.min.json public/icons public/sources
           git add sources/*/res/source.json
           git commit -m "Update source releases [skip ci]"
           git push
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to `gh-pages`
+        uses: JamesIves/github-pages-deploy-action@v4.7.3
         with:
-          path: public
+          branch: gh-pages
+          folder: public
+          git-config-name: GitHub Actions
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          commit-message: Update source list
+          single-commit: true
 
       - name: Upload packages artifact
         uses: actions/upload-artifact@v4
@@ -114,15 +108,3 @@ jobs:
           path: public
           if-no-files-found: ignore
 
-  deploy:
-    needs: release
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

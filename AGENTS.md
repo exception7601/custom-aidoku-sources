@@ -6,6 +6,7 @@
 
 - `sources/` contains source projects.
 - `public/` contains generated source list artifacts.
+- `public/` is generated locally and published by CI to the `gh-pages` branch.
 - `public/index.json` and `public/index.min.json` are the list entrypoints.
 - `public/sources/` contains packaged `.aix` outputs.
 - `public/icons/` contains icon assets copied during list build.
