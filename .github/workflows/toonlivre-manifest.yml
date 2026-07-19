@@ -57,7 +57,7 @@ jobs:
         run: sudo ip link add dev wg0 type wireguard
 
       - name: Add address
-        run: sudo ip address add dev wg0 ${{ vars.WIREGUARD_ADDRESS }} peer ${{ vars.WIREGUARD_PEER_ADDRESS }}
+        run: sudo ip address add dev wg0 ${{ vars.WIREGUARD_ADDRESS }} 
 
       - name: Configure WireGuard
         run: |
