@@ -56,10 +56,12 @@ jobs:
           args: --exit-node=100.100.1.1 --exit-node-allow-lan-access=true
 
       - name: Refresh manifest when needed
+        id: manifest
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: ./scripts/refresh-manifest.sh
 
       - name: Force refresh manifest when requested
+        id: manifest-force
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
         run: ./scripts/refresh-manifest.sh --force
 
@@ -69,6 +71,12 @@ jobs:
 
       - name: Push committed changes
         run: git push
+
+      - name: Release
+        if: steps.manifest.outputs.manifest_changed == 'true' || steps.manifest-force.outputs.manifest_changed == 'true'
+        run: gh workflow run release.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload bundle snapshots artifact
         uses: actions/upload-artifact@v4
