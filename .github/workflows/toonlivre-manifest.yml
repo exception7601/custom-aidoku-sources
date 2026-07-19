@@ -47,6 +47,30 @@ jobs:
       - name: Install extractor dependencies
         run: env -C extrator npm ci
 
+      - name: Install WireGuard
+        run: sudo apt-get update && sudo apt-get install -y wireguard
+
+      - name: Write private key
+        run: echo "${{ secrets.WIREGUARD_PRIVATE_KEY }}" > privatekey
+
+      - name: Create interface
+        run: sudo ip link add dev wg0 type wireguard
+
+      - name: Add address
+        run: sudo ip address add dev wg0 ${{ vars.WIREGUARD_ADDRESS }} peer ${{ vars.WIREGUARD_PEER_ADDRESS }}
+
+      - name: Configure WireGuard
+        run: |
+          sudo wg set wg0 \
+            listen-port ${{ vars.WIREGUARD_LISTEN_PORT }} \
+            private-key privatekey \
+            peer "${{ secrets.WIREGUARD_PUBLIC_KEY }}" \
+            allowed-ips "${{ vars.WIREGUARD_ALLOWED_IPS }}" \
+            endpoint "${{ vars.WIREGUARD_ENDPOINT }}"
+
+      - name: Bring interface up
+        run: sudo ip link set up dev wg0
+
       - name: Refresh manifest when needed
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: ./scripts/refresh-manifest.sh --no-commit
@@ -70,3 +94,9 @@ jobs:
           git add manifest sources/pt_BR.toonlivre/res/manifest.json
           git commit -m "Refresh ToonLivre manifest"
           git push
+
+      - name: Clean up WireGuard
+        if: always()
+        run: |
+          sudo ip link delete dev wg0 || true
+          rm -f privatekey
