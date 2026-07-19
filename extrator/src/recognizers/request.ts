@@ -5,12 +5,13 @@ import * as t from '@babel/types';
 const traverse = ((traverseImport as { default?: unknown }).default ??
   traverseImport) as typeof import('@babel/traverse').default;
 
-import type { SignatureRule } from '../manifest.js';
+import type { DynamicSignatureStrategy, SignatureRule } from '../manifest.js';
 import { evaluateStatic } from '../evaluate.js';
 
 export interface RequestRecognition {
   signatureHeader?: string;
   signatureRules: SignatureRule[];
+  signatureStrategy?: DynamicSignatureStrategy;
   verifyHeader?: string;
   verifyFunctionName?: string;
   dataKeyHeader?: string;
@@ -132,6 +133,7 @@ export function recognizeRequestSignals(ast: File): RequestRecognition {
     if (operation.headerName.includes('signature')) {
       recognition.signatureHeader = operation.headerName;
       recognition.signatureRules = extractSignatureRules(operation.valuePath);
+      recognition.signatureStrategy = extractDynamicSignatureStrategy(operation.valuePath);
       continue;
     }
 
@@ -193,6 +195,223 @@ function extractSignatureRules(valuePath: NodePath<t.Node>): SignatureRule[] {
         },
       ]
     : [];
+}
+
+function extractDynamicSignatureStrategy(
+  valuePath: NodePath<t.Node>
+): DynamicSignatureStrategy | undefined {
+  const signatureCallPath = unwrapValuePath(valuePath);
+  if (!signatureCallPath.isCallExpression()) {
+    return undefined;
+  }
+
+  const calleePath = signatureCallPath.get('callee');
+  if (!calleePath.isIdentifier({ name: 'btoa' })) {
+    return undefined;
+  }
+
+  const payloadPath = signatureCallPath.get('arguments.0');
+  if (!payloadPath || Array.isArray(payloadPath) || !payloadPath.isTemplateLiteral()) {
+    return undefined;
+  }
+
+  const [timestampExpressionPath, digestExpressionPath] = payloadPath.get('expressions');
+  if (
+    !timestampExpressionPath ||
+    !digestExpressionPath ||
+    Array.isArray(timestampExpressionPath) ||
+    Array.isArray(digestExpressionPath)
+  ) {
+    return undefined;
+  }
+
+  const timestampDivisor = extractTimestampDivisor(timestampExpressionPath);
+  if (!timestampDivisor) {
+    return undefined;
+  }
+
+  const digestBindingPath = unwrapValuePath(digestExpressionPath);
+  if (!digestBindingPath.isCallExpression()) {
+    return undefined;
+  }
+
+  const digestCalleePath = digestBindingPath.get('callee');
+  if (!digestCalleePath.isMemberExpression()) {
+    return undefined;
+  }
+
+  const digestPropertyPath = digestCalleePath.get('property');
+  if (Array.isArray(digestPropertyPath)) {
+    return undefined;
+  }
+
+  const digestPropertyName = !digestCalleePath.node.computed
+    ? digestPropertyPath.isIdentifier()
+      ? digestPropertyPath.node.name
+      : undefined
+    : evaluateStatic(digestPropertyPath);
+  if (digestPropertyName !== 'toString') {
+    return undefined;
+  }
+
+  const shaCallPath = digestCalleePath.get('object');
+  if (Array.isArray(shaCallPath) || !shaCallPath.isCallExpression()) {
+    return undefined;
+  }
+
+  const shaCalleePath = shaCallPath.get('callee');
+  if (!shaCalleePath.isMemberExpression()) {
+    return undefined;
+  }
+
+  const shaPropertyPath = shaCalleePath.get('property');
+  if (Array.isArray(shaPropertyPath)) {
+    return undefined;
+  }
+
+  const shaPropertyName = !shaCalleePath.node.computed
+    ? shaPropertyPath.isIdentifier()
+      ? shaPropertyPath.node.name
+      : undefined
+    : evaluateStatic(shaPropertyPath);
+  if (shaPropertyName !== 'SHA256') {
+    return undefined;
+  }
+
+  const payloadArgumentPath = shaCallPath.get('arguments.0');
+  if (!payloadArgumentPath || Array.isArray(payloadArgumentPath)) {
+    return undefined;
+  }
+
+  const payloadBindingPath = unwrapValuePath(payloadArgumentPath);
+  if (!payloadBindingPath.isTemplateLiteral()) {
+    return undefined;
+  }
+
+  const payloadExpressions = payloadBindingPath.get('expressions');
+  const routeKindPath = payloadExpressions[1];
+  const saltPath = payloadExpressions[2];
+  if (!routeKindPath || !saltPath || Array.isArray(routeKindPath) || Array.isArray(saltPath)) {
+    return undefined;
+  }
+
+  const routeSelector = extractRouteSelector(routeKindPath);
+  const salt = extractStaticString(saltPath);
+  if (!routeSelector || !salt) {
+    return undefined;
+  }
+
+  return {
+    kind: 'time-sha256-base64',
+    timestampDivisor,
+    salt,
+    routeSelector,
+  };
+}
+
+function extractTimestampDivisor(path: NodePath<t.Node>): number | undefined {
+  const bindingPath = unwrapValuePath(path);
+  if (!bindingPath.isCallExpression()) {
+    return undefined;
+  }
+
+  const calleePath = bindingPath.get('callee');
+  if (!calleePath.isMemberExpression()) {
+    return undefined;
+  }
+
+  const objectPath = calleePath.get('object');
+  const propertyPath = calleePath.get('property');
+  if (Array.isArray(objectPath) || Array.isArray(propertyPath)) {
+    return undefined;
+  }
+
+  const propertyName = !calleePath.node.computed
+    ? propertyPath.isIdentifier()
+      ? propertyPath.node.name
+      : undefined
+    : evaluateStatic(propertyPath);
+  if (propertyName !== 'floor') {
+    return undefined;
+  }
+
+  if (!objectPath.isIdentifier({ name: 'Math' })) {
+    return undefined;
+  }
+
+  const firstArgument = bindingPath.get('arguments.0');
+  if (!firstArgument || Array.isArray(firstArgument) || !firstArgument.isBinaryExpression()) {
+    return undefined;
+  }
+
+  if (firstArgument.node.operator !== '/') {
+    return undefined;
+  }
+
+  const leftPath = firstArgument.get('left');
+  const rightPath = firstArgument.get('right');
+  if (Array.isArray(leftPath) || Array.isArray(rightPath)) {
+    return undefined;
+  }
+
+  if (!isDateNowCall(leftPath)) {
+    return undefined;
+  }
+
+  const divisorValue = evaluateStatic(rightPath);
+  return typeof divisorValue === 'number' ? divisorValue : undefined;
+}
+
+function extractRouteSelector(path: NodePath<t.Node>): DynamicSignatureStrategy['routeSelector'] | undefined {
+  const bindingPath = unwrapValuePath(path);
+  if (!bindingPath.isConditionalExpression()) {
+    return undefined;
+  }
+
+  const whenMatched = evaluateStatic(bindingPath.get('consequent'));
+  const otherwise = evaluateStatic(bindingPath.get('alternate'));
+  const when = extractUrlCondition(bindingPath.get('test'));
+  if (
+    typeof whenMatched !== 'string' ||
+    typeof otherwise !== 'string' ||
+    when === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    whenUrlContains: when.urlContains,
+    whenMatched,
+    otherwise,
+  };
+}
+
+function extractStaticString(path: NodePath<t.Node>): string | undefined {
+  const value = evaluateStatic(unwrapValuePath(path));
+  return typeof value === 'string' ? value : undefined;
+}
+
+function isDateNowCall(path: NodePath<t.Node>): boolean {
+  if (!path.isCallExpression()) {
+    return false;
+  }
+
+  const calleePath = path.get('callee');
+  if (!calleePath.isMemberExpression()) {
+    return false;
+  }
+
+  const objectPath = calleePath.get('object');
+  const propertyPath = calleePath.get('property');
+  if (Array.isArray(objectPath) || Array.isArray(propertyPath)) {
+    return false;
+  }
+
+  return (
+    objectPath.isIdentifier({ name: 'Date' }) &&
+    !calleePath.node.computed &&
+    propertyPath.isIdentifier({ name: 'now' })
+  );
 }
 
 function extractVerifyFunctionName(valuePath: NodePath<t.Node>): string | undefined {

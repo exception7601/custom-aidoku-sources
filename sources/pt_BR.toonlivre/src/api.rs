@@ -231,7 +231,7 @@ where
 	T: serde::de::DeserializeOwned,
 {
 	let manifest = active_manifest();
-	let signature_value = String::from(signature_value_for_url(&manifest, url));
+	let signature_value = signature_value_for_url(&manifest, url);
 	let verification_token = generate_session_cookie_value(&manifest);
 	source_log!(
 		"[toonlivre] request_json start url={} signature_header={} verify_header={} cookie_name={} passphrase={}",

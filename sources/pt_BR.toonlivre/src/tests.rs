@@ -6,6 +6,7 @@ use aidoku::{
 	imports::net::Request,
 };
 use aidoku_test::aidoku_test;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 const SAMPLE_MANGA_ID: &str = "obra-dbbabf0f";
 const SAMPLE_MANGA_SLUG: &str = "contos-de-demonios-e-deuses";
@@ -109,17 +110,24 @@ fn helper_slugifies_titles_and_formats_chapters() {
 	assert_eq!(manifest.site_url, "https://toonlivre.net");
 	assert!(manifest.request.user_agent.contains("Mozilla/5.0"));
 	assert_eq!(manifest.request.accept_language, "en-US,en;q=0.9,pt;q=0.8");
-	assert_eq!(
-		signature_value_for_url(
-			&manifest,
-			"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5"
-		),
-		"t8v_authX9"
+	let chapter_signature = signature_value_for_url(
+		&manifest,
+		"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5",
 	);
-	assert_eq!(
-		signature_value_for_url(&manifest, SAMPLE_MANGA_URL),
-		"t8v_decoy9"
+	let list_signature = signature_value_for_url(
+		&manifest,
+		"https://toonlivre.net/api/mangas/releases?page=1&limit=48",
 	);
+	assert_ne!(chapter_signature, list_signature);
+	assert_ne!(chapter_signature, "t8v_authX9");
+	assert_ne!(list_signature, "t8v_decoy9");
+	let decoded_chapter_signature = must(
+		"decode chapter signature",
+		STANDARD
+			.decode(chapter_signature.as_bytes())
+			.map_err(|error| format!("base64 error: {error:?}")),
+	);
+	assert!(String::from_utf8(decoded_chapter_signature).is_ok());
 	assert_eq!(current_decryption_passphrase().len(), 30);
 	assert_eq!(token.len(), 26);
 	assert!(
@@ -189,17 +197,16 @@ fn manifest_fetches_remote_manifest_and_uses_decoded_values() {
 	assert_eq!(remote_manifest.schema_version, 1);
 	assert_eq!(remote_manifest.source_id, "pt_BR.toonlivre");
 	assert_eq!(remote_manifest.site_url, "https://toonlivre.net");
-	assert_eq!(
-		signature_value_for_url(
-			&remote_manifest,
-			"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5"
-		),
-		"t8v_authX9"
+	let remote_chapter_signature = signature_value_for_url(
+		&remote_manifest,
+		"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5",
 	);
-	assert_eq!(
-		signature_value_for_url(&remote_manifest, SAMPLE_MANGA_URL),
-		"t8v_decoy9"
+	let remote_list_signature = signature_value_for_url(
+		&remote_manifest,
+		"https://toonlivre.net/api/mangas/releases?page=1&limit=48",
 	);
+	assert!(!remote_chapter_signature.is_empty());
+	assert!(!remote_list_signature.is_empty());
 	let token = generate_session_cookie_value(&remote_manifest);
 	assert_eq!(token.len(), 26);
 	assert!(

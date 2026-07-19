@@ -9,6 +9,7 @@ base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 md-5 = { version = "0.10", default-features = false }
 rabbit = { version = "0.5", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+sha2 = { version = "0.10", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 unicode-normalization = { version = "0.1", default-features = false }
 

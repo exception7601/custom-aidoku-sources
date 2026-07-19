@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { Command } from 'commander';
 
 import { DEFAULT_CANARY_CHAPTER_URL, DEFAULT_SITE_URL, DEFAULT_SOURCE_ID } from './constants.js';
+import { downloadBundle } from './download-bundle.js';
 import { extractManifest } from './extract.js';
 import { parseManifest } from './manifest.js';
 import { probeManifestBundle } from './probe.js';
@@ -98,6 +99,27 @@ export async function runCli(argv: string[]): Promise<void> {
       const validation = await validateManifestAgainstChapter(manifest, options.canaryChapterUrl);
 
       process.stdout.write(`${JSON.stringify(validation, null, 2)}\n`);
+    });
+
+  program
+    .command('download-bundle')
+    .description('Download the current ToonLivre app bundle and snapshot bundle diagnostics.')
+    .option('--site-url <siteUrl>', 'Base site URL', DEFAULT_SITE_URL)
+    .option('--entry-url <entryUrl>', 'HTML entry URL to inspect for script tags')
+    .option(
+      '--bundle-url <bundleUrls...>',
+      'Explicit bundle URLs to download. Pass the base site URL to trigger discovery.'
+    )
+    .option('--out-dir <path>', 'Directory where bundle snapshots are stored', 'bundles')
+    .action(async (options) => {
+      const result = await downloadBundle({
+        siteUrl: options.siteUrl,
+        entryUrl: options.entryUrl,
+        bundleUrls: options.bundleUrl,
+        outputDir: options.outDir,
+      });
+
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     });
 
   await program.parseAsync(argv);

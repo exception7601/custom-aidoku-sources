@@ -3,7 +3,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { DEFAULT_SITE_URL, DEFAULT_SOURCE_ID } from '../../src/constants.js';
 import { extractManifest } from '../../src/extract.js';
-import { buildRequestContext, decryptPayload, derivePassphrase } from '../../src/runtime.js';
+import {
+  buildRequestContext,
+  decryptPayload,
+  deriveDynamicSignatureValue,
+  derivePassphrase,
+} from '../../src/runtime.js';
 import type { ExtractedManifest } from '../../src/manifest.js';
 import { fixturePath } from '../helpers.js';
 
@@ -40,6 +45,40 @@ describe('runtime helpers', () => {
     expect(listContext.headers.get('x-toon-signature')).toBe('t8v_decoy9');
     expect(chapterContext.headers.get('x-toon-verify')).toBe(chapterContext.sessionValue);
     expect(chapterContext.cookieHeader.startsWith('toon_v=')).toBe(true);
+  });
+
+  it('derives a dynamic signature when the manifest provides a strategy', () => {
+    const dynamicManifest: ExtractedManifest = {
+      ...manifest,
+      request: {
+        ...manifest.request,
+        signatureRules: [],
+        signatureStrategy: {
+          kind: 'time-sha256-base64',
+          timestampDivisor: 30000,
+          salt: 'My4xNDE=_1388',
+          routeSelector: {
+            whenUrlContains: '/chapters',
+            whenMatched: 'chapters',
+            otherwise: 'other',
+          },
+        },
+      },
+    };
+
+    const chapterContext = buildRequestContext(
+      dynamicManifest,
+      'https://toonlivre.net/api/mangas/obra/chapters/cap-1'
+    );
+    const listContext = buildRequestContext(dynamicManifest, 'https://toonlivre.net/api/mangas/releases');
+
+    expect(chapterContext.headers.get('x-toon-signature')).toBe(
+      deriveDynamicSignatureValue(dynamicManifest.request.signatureStrategy!, 'https://toonlivre.net/api/mangas/obra/chapters/cap-1')
+    );
+    expect(listContext.headers.get('x-toon-signature')).toBe(
+      deriveDynamicSignatureValue(dynamicManifest.request.signatureStrategy!, 'https://toonlivre.net/api/mangas/releases')
+    );
+    expect(chapterContext.headers.get('x-toon-signature')).not.toBe(listContext.headers.get('x-toon-signature'));
   });
 
   it('derives the passphrase and decrypts a response payload', () => {
