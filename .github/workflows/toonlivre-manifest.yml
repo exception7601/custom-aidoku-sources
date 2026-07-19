@@ -70,6 +70,7 @@ jobs:
         run: sudo tailscale logout
 
       - name: Push committed changes
+        if: always()
         run: git push
 
       - name: Release
