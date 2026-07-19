@@ -48,6 +48,14 @@ fn make_number_chapter() -> Chapter {
 	}
 }
 
+fn must<T, E: core::fmt::Debug>(label: &str, result: Result<T, E>) -> T {
+	result.unwrap_or_else(|error| panic!("{label} failed: {error:?}"))
+}
+
+fn must_some<T>(label: &str, value: Option<T>) -> T {
+	value.unwrap_or_else(|| panic!("{label} was missing"))
+}
+
 #[aidoku_test]
 fn helper_slugifies_titles_and_formats_chapters() {
 	assert_eq!(
@@ -121,13 +129,13 @@ fn helper_parses_deep_links() {
 
 #[aidoku_test]
 fn api_fetches_public_lists() {
-	let releases = fetch_releases(1, 3).unwrap();
+	let releases = must("fetch_releases", fetch_releases(1, 3));
 	assert_eq!(releases.pagination.current_page, 1);
 	assert!(!releases.mangas.is_empty());
 	assert!(releases.mangas.iter().all(|manga| !manga.id.is_empty()));
 	assert!(releases.pagination.has_next_page);
 
-	let search = search_mangas("duque", 1, 3).unwrap();
+	let search = must("search_mangas", search_mangas("duque", 1, 3));
 	assert!(!search.mangas.is_empty());
 	assert!(search.mangas.iter().any(|manga| {
 		manga.title.to_lowercase().contains("duque")
@@ -142,12 +150,12 @@ fn api_fetches_public_lists() {
 
 #[aidoku_test]
 fn api_fetches_manga_and_reader_data() {
-	let by_id = fetch_manga_by_id(SAMPLE_MANGA_ID).unwrap();
+	let by_id = must("fetch_manga_by_id", fetch_manga_by_id(SAMPLE_MANGA_ID));
 	assert_eq!(by_id.slug, SAMPLE_MANGA_SLUG);
 	assert_eq!(by_id.title, SAMPLE_MANGA_TITLE);
 	assert_eq!(by_id.status.as_deref(), Some("Ongoing"));
 
-	let reader = fetch_manga_reader(SAMPLE_MANGA_ID).unwrap();
+	let reader = must("fetch_manga_reader", fetch_manga_reader(SAMPLE_MANGA_ID));
 	assert!(reader.chapters.len() > 100);
 	assert!(
 		reader
@@ -156,7 +164,10 @@ fn api_fetches_manga_and_reader_data() {
 			.any(|chapter| chapter.id == SAMPLE_CHAPTER_ID)
 	);
 
-	let by_slug = fetch_manga_by_slug(SAMPLE_MANGA_SLUG).unwrap();
+	let by_slug = must(
+		"fetch_manga_by_slug",
+		fetch_manga_by_slug(SAMPLE_MANGA_SLUG),
+	);
 	assert_eq!(by_slug.id, SAMPLE_MANGA_ID);
 	assert!(by_slug.chapters.len() > 100);
 	assert!(
@@ -169,7 +180,10 @@ fn api_fetches_manga_and_reader_data() {
 
 #[aidoku_test]
 fn api_fetches_and_decrypts_chapter_pages() {
-	let chapter = fetch_chapter(SAMPLE_MANGA_ID, SAMPLE_CHAPTER_ID).unwrap();
+	let chapter = must(
+		"fetch_chapter",
+		fetch_chapter(SAMPLE_MANGA_ID, SAMPLE_CHAPTER_ID),
+	);
 	assert_eq!(chapter.id, SAMPLE_CHAPTER_ID);
 	assert_eq!(chapter.manga_id, SAMPLE_MANGA_ID);
 	assert_eq!(chapter.number, SAMPLE_CHAPTER_NUMBER);
@@ -187,7 +201,10 @@ fn api_fetches_and_decrypts_chapter_pages() {
 #[aidoku_test]
 fn source_maps_home_and_search_entries() {
 	let source = ToonLivre::new();
-	let home = source.get_search_manga_list(None, 1, Vec::new()).unwrap();
+	let home = must(
+		"get_search_manga_list home",
+		source.get_search_manga_list(None, 1, Vec::new()),
+	);
 	assert!(!home.entries.is_empty());
 	assert!(home.has_next_page);
 	assert!(
@@ -201,9 +218,10 @@ fn source_maps_home_and_search_entries() {
 			.all(|entry| entry.viewer == aidoku::Viewer::Vertical)
 	);
 
-	let search = source
-		.get_search_manga_list(Some(String::from("duque")), 1, Vec::new())
-		.unwrap();
+	let search = must(
+		"get_search_manga_list search",
+		source.get_search_manga_list(Some(String::from("duque")), 1, Vec::new()),
+	);
 	assert!(!search.entries.is_empty());
 	assert!(
 		search
@@ -216,9 +234,10 @@ fn source_maps_home_and_search_entries() {
 #[aidoku_test]
 fn source_maps_manga_details_and_chapters_from_id() {
 	let source = ToonLivre::new();
-	let updated = source
-		.get_manga_update(make_id_manga(), true, true)
-		.unwrap();
+	let updated = must(
+		"get_manga_update by id",
+		source.get_manga_update(make_id_manga(), true, true),
+	);
 
 	assert_eq!(updated.key, SAMPLE_MANGA_ID);
 	assert_eq!(updated.title, SAMPLE_MANGA_TITLE);
@@ -245,9 +264,10 @@ fn source_maps_manga_details_and_chapters_from_id() {
 #[aidoku_test]
 fn source_maps_manga_details_and_chapters_from_slug() {
 	let source = ToonLivre::new();
-	let updated = source
-		.get_manga_update(make_slug_manga(), true, true)
-		.unwrap();
+	let updated = must(
+		"get_manga_update by slug",
+		source.get_manga_update(make_slug_manga(), true, true),
+	);
 
 	assert_eq!(updated.key, SAMPLE_MANGA_ID);
 	assert_eq!(updated.title, SAMPLE_MANGA_TITLE);
@@ -264,9 +284,10 @@ fn source_maps_manga_details_and_chapters_from_slug() {
 #[aidoku_test]
 fn source_maps_page_list_from_ids() {
 	let source = ToonLivre::new();
-	let pages = source
-		.get_page_list(make_id_manga(), make_id_chapter())
-		.unwrap();
+	let pages = must(
+		"get_page_list by ids",
+		source.get_page_list(make_id_manga(), make_id_chapter()),
+	);
 	assert!(!pages.is_empty());
 	assert!(pages.iter().all(|page| match &page.content {
 		PageContent::Url(url, _) => url.starts_with("https://cdn.toonlivre.net/obras/"),
@@ -277,9 +298,10 @@ fn source_maps_page_list_from_ids() {
 #[aidoku_test]
 fn source_maps_page_list_from_slug_and_number() {
 	let source = ToonLivre::new();
-	let pages = source
-		.get_page_list(make_slug_manga(), make_number_chapter())
-		.unwrap();
+	let pages = must(
+		"get_page_list by slug and number",
+		source.get_page_list(make_slug_manga(), make_number_chapter()),
+	);
 	assert!(!pages.is_empty());
 	assert!(pages.iter().all(|page| match &page.content {
 		PageContent::Url(url, _) => url.starts_with("https://cdn.toonlivre.net/obras/"),
@@ -290,18 +312,22 @@ fn source_maps_page_list_from_slug_and_number() {
 #[aidoku_test]
 fn source_provides_image_requests() {
 	let source = ToonLivre::new();
-	let pages = source
-		.get_page_list(make_id_manga(), make_id_chapter())
-		.unwrap();
-	let first = pages
-		.into_iter()
-		.find_map(|page| match page.content {
+	let pages = must(
+		"get_page_list for image request",
+		source.get_page_list(make_id_manga(), make_id_chapter()),
+	);
+	let first = must_some(
+		"first page URL",
+		pages.into_iter().find_map(|page| match page.content {
 			PageContent::Url(url, context) => Some((url, context)),
 			_ => None,
-		})
-		.unwrap();
-	let request = source.get_image_request(first.0, first.1).unwrap();
-	let response = request.send().unwrap();
+		}),
+	);
+	let request = must(
+		"get_image_request",
+		source.get_image_request(first.0, first.1),
+	);
+	let response = must("image request send", request.send());
 	assert_eq!(response.status_code(), 200);
 	assert!(
 		response
@@ -316,18 +342,18 @@ fn source_provides_image_requests() {
 fn source_handles_deep_links() {
 	let source = ToonLivre::new();
 
-	match source
-		.handle_deep_link(String::from(SAMPLE_MANGA_URL))
-		.unwrap()
-	{
+	match must(
+		"handle_deep_link manga",
+		source.handle_deep_link(String::from(SAMPLE_MANGA_URL)),
+	) {
 		Some(DeepLinkResult::Manga { key }) => assert_eq!(key, SAMPLE_MANGA_SLUG),
 		_ => panic!("expected manga deep link"),
 	}
 
-	match source
-		.handle_deep_link(String::from(SAMPLE_CHAPTER_URL))
-		.unwrap()
-	{
+	match must(
+		"handle_deep_link chapter",
+		source.handle_deep_link(String::from(SAMPLE_CHAPTER_URL)),
+	) {
 		Some(DeepLinkResult::Chapter { manga_key, key }) => {
 			assert_eq!(manga_key, SAMPLE_MANGA_SLUG);
 			assert_eq!(key, SAMPLE_CHAPTER_NUMBER);

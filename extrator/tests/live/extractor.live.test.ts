@@ -20,17 +20,24 @@ liveDescribe('live ToonLivre extraction', () => {
       siteUrl: DEFAULT_SITE_URL,
       bundleUrls: [bundleInput],
     }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+
       if (bundleUrl) {
-        throw error;
+        throw new Error(`Live bundle extraction failed for ${bundleUrl}.\n${message}`);
       }
 
-      const message = error instanceof Error ? error.message : String(error);
       throw new Error(
         'Base URL discovery failed. Pass `TOONLIVRE_BUNDLE_URL` with the direct bundle URL ' +
-          `to bypass discovery. Original error: ${message}`
+          `to bypass discovery. Original error:\n${message}`
       );
     });
-    const validation = await validateManifestAgainstChapter(manifest, canaryChapterUrl);
+    const validation = await validateManifestAgainstChapter(manifest, canaryChapterUrl).catch(
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+
+        throw new Error(`Live chapter validation failed.\n${message}`);
+      }
+    );
 
     expect(manifest.request.signatureHeader).toBe('x-toon-signature');
     expect(manifest.request.sessionCookie.name).toBe('toon_v');
