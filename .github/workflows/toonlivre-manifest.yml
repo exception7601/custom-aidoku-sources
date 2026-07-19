@@ -48,14 +48,12 @@ jobs:
         run: env -C extrator npm ci
 
       - name: Refresh manifest when needed
-        env:
-          FORCE_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force || 'false' }}
-        run: |
-          if [ "$FORCE_INPUT" = "true" ]; then
-            FORCE=1 ./scripts/refresh-manifest.sh
-          else
-            ./scripts/refresh-manifest.sh
-          fi
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
+        run: ./scripts/refresh-manifest.sh --no-commit
+
+      - name: Force refresh manifest when requested
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
+        run: ./scripts/refresh-manifest.sh --force --no-commit
 
       - name: Show manifest status
         run: git status --short -- manifest sources/pt_BR.toonlivre/res/manifest.json

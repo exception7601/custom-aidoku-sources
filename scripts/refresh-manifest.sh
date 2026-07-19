@@ -1,18 +1,85 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/refresh-manifest.sh [--force] [--no-commit] [--site <url>]
+
+Refreshes the ToonLivre manifest locally.
+By default, the script probes the live site and only regenerates the manifest
+when the bundle changed.
+Use `--force` to skip the probe and regenerate immediately.
+Use `--no-commit` to skip the local manifest commit.
+EOF
+}
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SITE_URL="${1:-https://toonlivre.net/}"
-MANIFEST_PATH="$REPO_ROOT/manifest/manifest.json"
+DEFAULT_SITE_URL="https://toonlivre.net/"
+SITE_URL="$DEFAULT_SITE_URL"
+MANIFEST_RELATIVE_PATH="manifest/manifest.json"
+SOURCE_FALLBACK_RELATIVE_PATH="sources/pt_BR.toonlivre/res/manifest.json"
+MANIFEST_PATH="$REPO_ROOT/$MANIFEST_RELATIVE_PATH"
+SOURCE_FALLBACK_PATH="$REPO_ROOT/$SOURCE_FALLBACK_RELATIVE_PATH"
 NODE_BIN="${NODE_BIN:-$(dirname "$(command -v npm)")/node}"
 TSX_CLI_PATH="$REPO_ROOT/extrator/node_modules/tsx/dist/cli.mjs"
-FORCE_REFRESH="${FORCE:-0}"
+FORCE_REFRESH=0
+AUTO_COMMIT=1
 TEMP_PROBE_PATH="$(mktemp)"
 
 trap 'rm -f "$TEMP_PROBE_PATH"' EXIT
 
+commit_manifest_changes() {
+  local MANIFEST_CHANGES=""
+
+  MANIFEST_CHANGES="$(git -C "$REPO_ROOT" status --short -- manifest "$SOURCE_FALLBACK_RELATIVE_PATH")"
+  if [[ -z "$MANIFEST_CHANGES" ]]; then
+    echo "[manifest] no manifest changes to commit"
+    return 0
+  fi
+
+  printf '%s\n' "$MANIFEST_CHANGES"
+  git -C "$REPO_ROOT" add manifest "$SOURCE_FALLBACK_RELATIVE_PATH"
+  git -C "$REPO_ROOT" commit -m "Refresh ToonLivre manifest"
+  echo "[manifest] local commit created"
+}
+
+while (($#)); do
+  case "$1" in
+    --force)
+      FORCE_REFRESH=1
+      shift
+      ;;
+    --no-commit)
+      AUTO_COMMIT=0
+      shift
+      ;;
+    --site)
+      if (($# < 2)); then
+        echo "[manifest] missing value for --site" >&2
+        exit 1
+      fi
+      SITE_URL="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[manifest] unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [[ ! -f "$TSX_CLI_PATH" ]]; then
-  echo "[manifest] run: env -C \"$REPO_ROOT/extrator\" npm install"
+  echo "[manifest] installing extractor dependencies"
+  env -C "$REPO_ROOT/extrator" npm ci
+fi
+
+if [[ ! -f "$TSX_CLI_PATH" ]]; then
+  echo "[manifest] unable to locate tsx CLI after dependency install" >&2
   exit 1
 fi
 
@@ -42,6 +109,7 @@ else
 
   if [[ "$CHANGED" != "true" ]]; then
     echo "[manifest] skip: live bundle still matches the saved manifest"
+    echo "[manifest] tip: rerun with --force to regenerate anyway"
     exit 0
   fi
 fi
@@ -53,3 +121,11 @@ env -C "$REPO_ROOT/extrator" \
   --manifest "$MANIFEST_PATH" >/dev/null
 
 echo "[manifest] refresh + validation completed"
+echo "[manifest] updated: $MANIFEST_PATH"
+echo "[manifest] updated: $SOURCE_FALLBACK_PATH"
+
+if [[ "$AUTO_COMMIT" == "1" ]]; then
+  commit_manifest_changes
+else
+  echo "[manifest] auto-commit disabled"
+fi
