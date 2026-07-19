@@ -51,7 +51,7 @@ jobs:
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
-          args: --exit-node=pi --exit-node-allow-lan-access=true
+          args: --exit-node=100.100.1.1 --exit-node-allow-lan-access=true
 
       - name: Verify Outbound IP
         run: |
