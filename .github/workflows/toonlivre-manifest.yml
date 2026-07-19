@@ -70,6 +70,10 @@ jobs:
 
       - name: Bring interface up
         run: sudo ip link set up dev wg0
+      
+      - name: Route traffic through WireGuard
+        run: |
+          sudo ip route add 0.0.0.0/1 dev wg0
 
       - name: Configure DNS
         run: |
