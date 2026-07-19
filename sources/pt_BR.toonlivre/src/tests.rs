@@ -60,6 +60,32 @@ fn must_some<T>(label: &str, value: Option<T>) -> T {
 	value.unwrap_or_else(|| panic!("{label} was missing"))
 }
 
+fn assert_remote_numbers_fit_i64(path: &str, value: &serde_json::Value) {
+	match value {
+		serde_json::Value::Object(map) => {
+			for (key, value) in map.iter() {
+				let child_path = format!("{path}.{key}");
+				assert_remote_numbers_fit_i64(&child_path, value);
+			}
+		}
+		serde_json::Value::Array(values) => {
+			for (index, value) in values.iter().enumerate() {
+				let child_path = format!("{path}[{index}]");
+				assert_remote_numbers_fit_i64(&child_path, value);
+			}
+		}
+		serde_json::Value::Number(number) => {
+			if let Some(value) = number.as_i64() {
+				assert!(
+					i64::try_from(value).is_ok(),
+					"remote manifest integer out of i64 range at {path}: {value}"
+				);
+			}
+		}
+		serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::String(_) => {}
+	}
+}
+
 #[aidoku_test]
 fn helper_slugifies_titles_and_formats_chapters() {
 	assert_eq!(
@@ -132,7 +158,7 @@ fn helper_parses_deep_links() {
 }
 
 #[aidoku_test]
-fn manifest_fetches_remote_manifest() {
+fn manifest_fetches_remote_manifest_and_uses_decoded_values() {
 	let response = must(
 		"remote manifest request",
 		Request::get(REMOTE_MANIFEST_URL_FOR_TESTS)
@@ -157,22 +183,61 @@ fn manifest_fetches_remote_manifest() {
 		"remote manifest status was {status}; body: {}",
 		body.chars().take(200).collect::<String>()
 	);
-	let manifest = must(
-		"parse remote manifest json",
-		serde_json::from_str::<ClientManifest>(&body).map_err(|error| {
-			format!(
-				"json error: {error:?}; body: {}",
-				body.chars().take(200).collect::<String>()
-			)
-		}),
+
+	let remote_manifest = must_some("parse remote manifest json", parse_manifest(&body));
+
+	assert_eq!(remote_manifest.schema_version, 1);
+	assert_eq!(remote_manifest.source_id, "pt_BR.toonlivre");
+	assert_eq!(remote_manifest.site_url, "https://toonlivre.net");
+	assert_eq!(
+		signature_value_for_url(
+			&remote_manifest,
+			"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5"
+		),
+		"t8v_authX9"
 	);
-	assert_eq!(manifest.schema_version, 1);
-	assert_eq!(manifest.source_id, "pt_BR.toonlivre");
-	assert_eq!(manifest.site_url, "https://toonlivre.net");
-	assert_eq!(manifest.request.signature_header, "x-toon-signature");
-	assert_eq!(manifest.request.verify_header, "x-toon-verify");
-	assert_eq!(manifest.request.session_cookie.name, "toon_v");
-	assert_eq!(manifest.decrypt.data_key_header, "x-toon-datakey");
+	assert_eq!(
+		signature_value_for_url(&remote_manifest, SAMPLE_MANGA_URL),
+		"t8v_decoy9"
+	);
+	let token = generate_session_cookie_value(&remote_manifest);
+	assert_eq!(token.len(), 26);
+	assert!(
+		token
+			.chars()
+			.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit())
+	);
+	let passphrase = current_decryption_passphrase_for_manifest(&remote_manifest);
+	assert_eq!(passphrase.len(), 30);
+	assert!(passphrase.starts_with("Dealer-Critter-Catnip4"));
+}
+
+#[aidoku_test]
+fn manifest_remote_numeric_fields_fit_i64() {
+	let response = must(
+		"remote manifest request",
+		Request::get(REMOTE_MANIFEST_URL_FOR_TESTS)
+			.and_then(|request| {
+				request
+					.header("accept", "application/json")
+					.header("accept-language", ACCEPT_LANGUAGE)
+					.header("user-agent", REMOTE_MANIFEST_USER_AGENT_FOR_TESTS)
+					.send()
+			})
+			.map_err(|error| format!("request error: {error:?}")),
+	);
+	let body = must(
+		"remote manifest response body",
+		response
+			.get_string()
+			.map_err(|error| format!("body error: {error:?}")),
+	);
+	let json = must(
+		"parse remote manifest as value",
+		serde_json::from_str::<serde_json::Value>(&body)
+			.map_err(|error| format!("json error: {error:?}")),
+	);
+	assert_remote_numbers_fit_i64("$", &json);
 }
 
 #[aidoku_test]

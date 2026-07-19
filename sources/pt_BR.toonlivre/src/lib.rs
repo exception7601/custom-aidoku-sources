@@ -2,6 +2,18 @@
 #[allow(unused_imports)]
 use aidoku::{DeepLinkHandler, Home, ImageRequestProvider, Source, prelude::*};
 
+#[cfg(any(test, debug_assertions))]
+macro_rules! source_log {
+	($($arg:tt)*) => {
+		println!($($arg)*)
+	};
+}
+
+#[cfg(not(any(test, debug_assertions)))]
+macro_rules! source_log {
+	($($arg:tt)*) => {};
+}
+
 pub(crate) const BASE_URL: &str = "https://toonlivre.net";
 pub(crate) const ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,pt;q=0.8";
 

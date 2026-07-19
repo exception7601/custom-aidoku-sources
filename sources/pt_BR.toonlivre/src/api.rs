@@ -25,7 +25,7 @@ const ERROR_BODY_SNIPPET_LIMIT: usize = 220;
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ApiPagination {
 	#[serde(rename = "currentPage")]
-	pub current_page: i32,
+	pub current_page: i64,
 	#[serde(rename = "hasNextPage")]
 	pub has_next_page: bool,
 }
@@ -42,7 +42,7 @@ pub(crate) struct ApiChapter {
 	#[serde(default)]
 	pub timestamp: i64,
 	#[serde(default, rename = "pageCount")]
-	pub page_count: Option<i32>,
+	pub page_count: Option<i64>,
 }
 
 #[allow(dead_code)]
@@ -178,12 +178,19 @@ struct RequestFailureContext<'a> {
 }
 
 pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
+	source_log!("[toonlivre] fetch_releases page={} limit={}", page, limit);
 	request_json(&format!(
 		"{API_BASE}/mangas/releases?page={page}&limit={limit}"
 	))
 }
 
 pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiListResponse> {
+	source_log!(
+		"[toonlivre] search_mangas query={} page={} limit={}",
+		query,
+		page,
+		limit
+	);
 	let encoded = percent_encode(query.trim());
 	request_json(&format!(
 		"{API_BASE}/mangas/search?q={encoded}&page={page}&limit={limit}&sortBy=updated&sortOrder=desc"
@@ -191,14 +198,17 @@ pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiLis
 }
 
 pub(crate) fn fetch_manga_by_id(id: &str) -> Result<ApiMangaById> {
+	source_log!("[toonlivre] fetch_manga_by_id id={id}");
 	request_json(&format!("{API_BASE}/mangas/{id}"))
 }
 
 pub(crate) fn fetch_manga_reader(id: &str) -> Result<ApiReaderManga> {
+	source_log!("[toonlivre] fetch_manga_reader id={id}");
 	request_json(&format!("{API_BASE}/mangas/{id}/reader"))
 }
 
 pub(crate) fn fetch_manga_by_slug(slug: &str) -> Result<ApiMangaBySlug> {
+	source_log!("[toonlivre] fetch_manga_by_slug slug={}", slug);
 	request_json(&format!(
 		"{API_BASE}/manga-by-slug/{}",
 		percent_encode(slug.trim_matches('/'))
@@ -206,6 +216,11 @@ pub(crate) fn fetch_manga_by_slug(slug: &str) -> Result<ApiMangaBySlug> {
 }
 
 pub(crate) fn fetch_chapter(manga_id: &str, chapter_id: &str) -> Result<ApiChapterDetails> {
+	source_log!(
+		"[toonlivre] fetch_chapter manga_id={} chapter_id={}",
+		manga_id,
+		chapter_id
+	);
 	request_json(&format!(
 		"{API_BASE}/mangas/{manga_id}/chapters/{chapter_id}"
 	))
@@ -218,6 +233,14 @@ where
 	let manifest = active_manifest();
 	let signature_value = String::from(signature_value_for_url(&manifest, url));
 	let verification_token = generate_session_cookie_value(&manifest);
+	source_log!(
+		"[toonlivre] request_json start url={} signature_header={} verify_header={} cookie_name={} passphrase={}",
+		url,
+		manifest.request.signature_header,
+		manifest.request.verify_header,
+		manifest.request.session_cookie.name,
+		current_decryption_passphrase_for_manifest(&manifest)
+	);
 	let cookie = format!(
 		"{}={verification_token}",
 		manifest.request.session_cookie.name
@@ -246,11 +269,24 @@ where
 	let retry_after = response.get_header("retry-after");
 	let rate_remaining = response.get_header("ratelimit-remaining");
 	let rate_reset = response.get_header("ratelimit-reset");
+	source_log!(
+		"[toonlivre] request_json response url={} status={} data_key={:?} content_type={:?} cf_ray={:?}",
+		url,
+		status,
+		data_key.as_deref(),
+		content_type.as_deref(),
+		cf_ray.as_deref()
+	);
 	let body = response.get_string().map_err(|error| {
 		AidokuError::Message(format!(
 			"Failed to read ToonLivre response body.\nURL: {url}\nStatus: {status}\nError: {error:?}"
 		))
 	})?;
+	source_log!(
+		"[toonlivre] request_json body url={} snippet={}",
+		url,
+		summarize_body(&body)
+	);
 	if !(200..300).contains(&status) {
 		bail!(
 			"{}",
@@ -270,6 +306,12 @@ where
 	}
 	let body = match data_key.as_deref() {
 		Some(data_key) => {
+			source_log!(
+				"[toonlivre] request_json decrypt start url={} data_key={} body_snippet={}",
+				url,
+				data_key,
+				summarize_body(&body)
+			);
 			decrypt_response_payload(&body, data_key, &manifest).map_err(|error| {
 				AidokuError::Message(format_payload_failure(
 					url,
@@ -296,6 +338,11 @@ where
 		}
 		None => body,
 	};
+	source_log!(
+		"[toonlivre] request_json final_payload url={} snippet={}",
+		url,
+		summarize_body(&body)
+	);
 	serde_json::from_str(&body).map_err(|error| {
 		AidokuError::Message(format!(
 			"Failed to parse ToonLivre JSON response.\nURL: {url}\nError: {error}\nBody: {}",
@@ -531,6 +578,12 @@ fn decrypt_response_payload(
 	data_key: &str,
 	manifest: &crate::ClientManifest,
 ) -> Result<String> {
+	source_log!(
+		"[toonlivre] decrypt_response_payload start data_key={} selector={} body_snippet={}",
+		data_key,
+		manifest.decrypt.payload_selector,
+		summarize_body(body)
+	);
 	let value: Value = serde_json::from_str(body)
 		.map_err(|err| AidokuError::Message(format!("JSON parse error: {err}")))?;
 	let encrypted_payload = value
@@ -538,6 +591,11 @@ fn decrypt_response_payload(
 		.or_else(|| value.as_object().and_then(|object| object.values().next()))
 		.and_then(Value::as_str)
 		.ok_or_else(|| AidokuError::Message(String::from("Missing encrypted payload")))?;
+	source_log!(
+		"[toonlivre] decrypt_response_payload extracted key={} payload_len={}",
+		data_key,
+		encrypted_payload.len()
+	);
 	decrypt_cryptojs_rabbit(
 		encrypted_payload,
 		&current_decryption_passphrase_for_manifest(manifest),
@@ -545,6 +603,11 @@ fn decrypt_response_payload(
 }
 
 fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<String> {
+	source_log!(
+		"[toonlivre] decrypt_cryptojs_rabbit start encrypted_len={} password={}",
+		encrypted_data.len(),
+		password
+	);
 	let raw = STANDARD.decode(encrypted_data).map_err(|_| {
 		AidokuError::Message(String::from("Failed to decode base64 chapter payload"))
 	})?;
@@ -553,6 +616,12 @@ fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<Strin
 	}
 	let salt = &raw[8..16];
 	let mut ciphertext = raw[16..].to_vec();
+	source_log!(
+		"[toonlivre] decrypt_cryptojs_rabbit decoded raw_len={} ciphertext_len={} salt={}",
+		raw.len(),
+		ciphertext.len(),
+		hex_lower_string(salt)
+	);
 	let key_iv = evp_bytes_to_key(password.as_bytes(), salt, 24);
 	let key: [u8; 16] = key_iv[..16]
 		.try_into()
@@ -562,11 +631,23 @@ fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<Strin
 		.map_err(|_| AidokuError::Message(String::from("Invalid Rabbit IV length")))?;
 	let mut cipher = Rabbit::new(&key.into(), &iv.into());
 	cipher.apply_keystream(&mut ciphertext);
+	source_log!(
+		"[toonlivre] decrypt_cryptojs_rabbit key={} iv={} ciphertext_after_len={}",
+		hex_lower_string(&key),
+		hex_lower_string(&iv),
+		ciphertext.len()
+	);
 	String::from_utf8(ciphertext)
 		.map_err(|err| AidokuError::Message(format!("UTF-8 decode error: {err}")))
 }
 
 fn evp_bytes_to_key(password: &[u8], salt: &[u8], output_len: usize) -> Vec<u8> {
+	source_log!(
+		"[toonlivre] evp_bytes_to_key start password_len={} salt={} output_len={}",
+		password.len(),
+		hex_lower_string(salt),
+		output_len
+	);
 	let mut output = Vec::with_capacity(output_len);
 	let mut previous = Vec::new();
 	while output.len() < output_len {
@@ -581,5 +662,26 @@ fn evp_bytes_to_key(password: &[u8], salt: &[u8], output_len: usize) -> Vec<u8> 
 		let take = remaining.min(previous.len());
 		output.extend_from_slice(&previous[..take]);
 	}
+	source_log!(
+		"[toonlivre] evp_bytes_to_key done derived_len={} derived={}",
+		output.len(),
+		hex_lower_string(&output)
+	);
 	output
+}
+
+fn hex_lower_string(bytes: &[u8]) -> String {
+	let mut output = String::new();
+	for byte in bytes.iter() {
+		output.push(hex_lower_digit(byte >> 4));
+		output.push(hex_lower_digit(byte & 0x0F));
+	}
+	output
+}
+
+fn hex_lower_digit(value: u8) -> char {
+	match value {
+		0..=9 => (b'0' + value) as char,
+		_ => (b'a' + (value - 10)) as char,
+	}
 }

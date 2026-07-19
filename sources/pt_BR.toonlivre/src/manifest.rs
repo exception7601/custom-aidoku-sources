@@ -1,3 +1,4 @@
+use aidoku::prelude::*;
 use aidoku::{
 	alloc::{String, Vec, format, vec},
 	imports::{
@@ -14,10 +15,7 @@ use crate::{ACCEPT_LANGUAGE, BASE_URL};
 const BUNDLED_MANIFEST_JSON: &str = include_str!("../res/manifest.json");
 const REMOTE_MANIFEST_URL: &str =
 	"https://exception7601.github.io/custom-aidoku-sources/manifest.json";
-const MANIFEST_CACHE_KEY: &str = "toonlivre.manifest.json";
-const MANIFEST_CACHE_UPDATED_AT_KEY: &str = "toonlivre.manifest.updated-at";
 const MANIFEST_REQUEST_COUNTER_KEY: &str = "toonlivre.manifest.request-counter";
-const MANIFEST_CACHE_TTL_SECONDS: i32 = 3_600;
 const MANIFEST_SOURCE_ID: &str = "pt_BR.toonlivre";
 const FALLBACK_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 const FALLBACK_SIGNATURE_HEADER: &str = "x-toon-signature";
@@ -33,7 +31,7 @@ const FALLBACK_DECRYPTION_SUFFIX: &str = "t17_4v19_b2";
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ClientManifest {
-	pub schema_version: i32,
+	pub schema_version: i64,
 	pub source_id: String,
 	pub site_url: String,
 	pub request: ManifestRequest,
@@ -126,16 +124,11 @@ pub(crate) struct ManifestDigestSlice {
 }
 
 pub(crate) fn active_manifest() -> ClientManifest {
-	if let Some(manifest) = cached_manifest(false) {
-		return manifest;
-	}
 	if let Some(manifest) = fetch_remote_manifest() {
-		cache_manifest(&manifest);
+		source_log!("[toonlivre] active_manifest source=remote");
 		return manifest;
 	}
-	if let Some(manifest) = cached_manifest(true) {
-		return manifest;
-	}
+	source_log!("[toonlivre] active_manifest source=local_fallback");
 	bundled_manifest()
 }
 
@@ -210,19 +203,8 @@ pub(crate) fn current_decryption_passphrase_for_manifest(manifest: &ClientManife
 	}
 }
 
-fn cached_manifest(allow_stale: bool) -> Option<ClientManifest> {
-	let manifest_json: String = defaults_get(MANIFEST_CACHE_KEY)?;
-	if !allow_stale {
-		let updated_at: i32 = defaults_get(MANIFEST_CACHE_UPDATED_AT_KEY)?;
-		let age = (current_date() as i32).saturating_sub(updated_at);
-		if age > MANIFEST_CACHE_TTL_SECONDS {
-			return None;
-		}
-	}
-	parse_manifest(&manifest_json)
-}
-
 fn fetch_remote_manifest() -> Option<ClientManifest> {
+	source_log!("[toonlivre] fetch_remote_manifest url={REMOTE_MANIFEST_URL}");
 	let response = Request::get(REMOTE_MANIFEST_URL)
 		.ok()?
 		.header("accept", "application/json")
@@ -230,25 +212,20 @@ fn fetch_remote_manifest() -> Option<ClientManifest> {
 		.header("user-agent", FALLBACK_USER_AGENT)
 		.send()
 		.ok()?;
-	if !(200..300).contains(&response.status_code()) {
+	let status = response.status_code();
+	if !(200..300).contains(&status) {
+		source_log!("[toonlivre] fetch_remote_manifest status={status}");
 		return None;
 	}
 	let body = response.get_string().ok()?;
+	source_log!(
+		"[toonlivre] fetch_remote_manifest body={}",
+		manifest_log_snippet(&body)
+	);
 	parse_manifest(&body)
 }
 
-fn cache_manifest(manifest: &ClientManifest) {
-	let Ok(manifest_json) = serde_json::to_string(manifest) else {
-		return;
-	};
-	defaults_set(MANIFEST_CACHE_KEY, DefaultValue::String(manifest_json));
-	defaults_set(
-		MANIFEST_CACHE_UPDATED_AT_KEY,
-		DefaultValue::Int(current_date() as i32),
-	);
-}
-
-fn parse_manifest(manifest_json: &str) -> Option<ClientManifest> {
+pub(crate) fn parse_manifest(manifest_json: &str) -> Option<ClientManifest> {
 	let manifest = serde_json::from_str::<ClientManifest>(manifest_json).ok()?;
 	validate_manifest(manifest)
 }
@@ -430,6 +407,32 @@ fn hex_digit(value: u8) -> char {
 		0..=9 => (b'0' + value) as char,
 		_ => (b'a' + (value - 10)) as char,
 	}
+}
+
+fn manifest_log_snippet(body: &str) -> String {
+	let trimmed = body.trim();
+	if trimmed.is_empty() {
+		return String::new();
+	}
+	let mut output = String::new();
+	let mut previous_was_space = false;
+	for ch in trimmed.chars() {
+		let normalized = if ch.is_whitespace() { ' ' } else { ch };
+		if normalized == ' ' {
+			if previous_was_space {
+				continue;
+			}
+			previous_was_space = true;
+		} else {
+			previous_was_space = false;
+		}
+		if output.len() >= 400 {
+			output.push_str("...");
+			break;
+		}
+		output.push(normalized);
+	}
+	output
 }
 
 fn current_utc_date_string() -> String {
