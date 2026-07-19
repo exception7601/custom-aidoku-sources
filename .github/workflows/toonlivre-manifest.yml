@@ -55,11 +55,6 @@ jobs:
           tags: tag:github-action
           args: --exit-node=100.100.1.1 --exit-node-allow-lan-access=true
 
-      - name: Verify Outbound IP
-        run: |
-          echo "Your current public IP through the Exit Node is:"
-          curl -s https://ifconfig.me
-
       - name: Refresh manifest when needed
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: ./scripts/refresh-manifest.sh
