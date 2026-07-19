@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import { DEFAULT_CANARY_CHAPTER_URL, DEFAULT_SITE_URL, DEFAULT_SOURCE_ID } from './constants.js';
 import { extractManifest } from './extract.js';
 import { parseManifest } from './manifest.js';
+import { probeManifestBundle } from './probe.js';
 import { validateManifestAgainstChapter } from './validate.js';
 
 export async function runCli(argv: string[]): Promise<void> {
@@ -62,6 +63,24 @@ export async function runCli(argv: string[]): Promise<void> {
       }
 
       process.stdout.write(`${serialized}\n`);
+    });
+
+  program
+    .command('probe')
+    .description('Quickly detect whether the live ToonLivre bundle changed since a saved manifest.')
+    .requiredOption('--manifest <path>', 'Manifest JSON file to compare against the live site')
+    .option('--site-url <siteUrl>', 'Base site URL to inspect', DEFAULT_SITE_URL)
+    .option('--entry-url <entryUrl>', 'HTML entry URL to inspect for script tags')
+    .action(async (options) => {
+      const input = await readFile(resolve(options.manifest), 'utf8');
+      const manifest = parseManifest(JSON.parse(input));
+      const probe = await probeManifestBundle({
+        manifest,
+        siteUrl: options.siteUrl,
+        entryUrl: options.entryUrl,
+      });
+
+      process.stdout.write(`${JSON.stringify(probe, null, 2)}\n`);
     });
 
   program

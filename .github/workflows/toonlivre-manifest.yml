@@ -1,0 +1,74 @@
+name: Refresh ToonLivre Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Force refresh even when the live bundle still matches the saved manifest.
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 */3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: toonlivre-manifest-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global commit.gpgsign false
+          git config --global tag.gpgsign false
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extrator/package-lock.json
+
+      - name: Install extractor dependencies
+        run: env -C extrator npm ci
+
+      - name: Refresh manifest when needed
+        env:
+          FORCE_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force || 'false' }}
+        run: |
+          if [ "$FORCE_INPUT" = "true" ]; then
+            FORCE=1 ./scripts/refresh-manifest.sh
+          else
+            ./scripts/refresh-manifest.sh
+          fi
+
+      - name: Show manifest status
+        run: git status --short -- manifest sources/pt_BR.toonlivre/res/manifest.json
+
+      - name: Commit updated manifest
+        run: |
+          changes="$(git status --short -- manifest sources/pt_BR.toonlivre/res/manifest.json)"
+          if [ -z "$changes" ]; then
+            echo "No manifest changes to commit."
+            exit 0
+          fi
+
+          printf '%s\n' "$changes"
+          git add manifest sources/pt_BR.toonlivre/res/manifest.json
+          git commit -m "Refresh ToonLivre manifest"
+          git push
