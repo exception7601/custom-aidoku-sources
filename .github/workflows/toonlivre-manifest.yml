@@ -92,6 +92,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
         run: ./scripts/refresh-manifest.sh --force
 
+      - name: Clean up WireGuard
+        if: always()
+        run: |
+          sudo wg-quick down wg0 || true
+          sudo rm -f /etc/wireguard/wg0.conf
+          
       - name: Push committed changes
         run: git push
 
@@ -105,8 +111,3 @@ jobs:
             extrator/bundles/bundle_*/
           if-no-files-found: ignore
 
-      - name: Clean up WireGuard
-        if: always()
-        run: |
-          sudo wg-quick down wg0 || true
-          sudo rm -f /etc/wireguard/wg0.conf
