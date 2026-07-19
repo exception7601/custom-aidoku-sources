@@ -12,6 +12,7 @@ sudo install -d -m 700 /etc/wireguard
     echo "[Interface]"
     echo "PrivateKey = ${WIREGUARD_PRIVATE_KEY}"
     echo "Address = ${WIREGUARD_ADDRESS}"
+    echo "DNS = 1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::1001"
     echo "MTU = 1280"
 
     echo
