@@ -8,15 +8,69 @@ The goal is to keep unstable frontend details out of `sources/pt_BR.toonlivre`.
 - downloads the current bundle;
 - parses the JavaScript into an AST;
 - extracts request header rules, session token rules, and decrypt rules;
+- validates the extracted runtime against a live chapter endpoint;
 - writes a manifest that the source can use.
 
 ## Main files
 
-- `src/cli.ts` has the `extract` and `validate` commands;
+- `src/cli.ts` exposes the `extract`, `validate`, `probe`, and `download-bundle` commands;
 - `src/extract.ts` runs the full extraction flow;
 - `src/manifest.ts` defines the manifest schema;
 - `src/runtime.ts` rebuilds request and decrypt behavior from the manifest;
+- `src/validate.ts` checks whether a manifest still works against a live chapter API;
+- `src/probe.ts` compares the saved manifest bundle against the live site;
 - `src/recognizers/` contains the bundle analysis logic.
+
+## Basic commands
+
+Install dependencies.
+
+```sh
+env -C extrator npm install
+```
+
+Run the unit tests.
+
+```sh
+env -C extrator npm test
+```
+
+Run the live extractor test suite.
+
+```sh
+env -C extrator npm run test:live
+```
+
+Run lint and typecheck.
+
+```sh
+env -C extrator npm run lint
+env -C extrator npm run typecheck
+```
+
+Validate the source manifest against the live chapter canary.
+
+```sh
+env -C extrator node dist/cli.js validate --manifest ../sources/pt_BR.toonlivre/res/manifest.json
+```
+
+Probe whether the saved manifest bundle still matches the live site.
+
+```sh
+env -C extrator node dist/cli.js probe --manifest ../sources/pt_BR.toonlivre/res/manifest.json
+```
+
+Extract a fresh manifest from the live site.
+
+```sh
+env -C extrator npm run extract -- --entry-url https://toonlivre.net/
+```
+
+Download the current live bundle snapshot.
+
+```sh
+env -C extrator node dist/cli.js download-bundle --entry-url https://toonlivre.net/ --out-dir bundles
+```
 
 ## Inputs
 
@@ -48,3 +102,13 @@ The source uses the manifest in this order:
 - bundled fallback manifest.
 
 This keeps the source working even if the remote manifest is unavailable.
+
+## Recommended update flow
+
+When ToonLivre changes, use this sequence.
+
+- run `probe` to confirm whether the live bundle changed;
+- run `extract` to generate a fresh manifest;
+- run `validate` against `sources/pt_BR.toonlivre/res/manifest.json`;
+- run `cargo test` in `sources/pt_BR.toonlivre`;
+- package and verify the source if the tests pass.

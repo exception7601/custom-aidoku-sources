@@ -37,6 +37,11 @@ Format the source.
 env -C sources/pt_BR.montetaiscanlator cargo fmt
 ```
 
+## `extrator/`
+
+For extractor usage, commands, and workflow notes, see `extrator/docs/README.md`.
+
+
 Package the source.
 
 ```sh
