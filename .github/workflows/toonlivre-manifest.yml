@@ -47,13 +47,22 @@ jobs:
       - name: Install extractor dependencies
         run: env -C extrator npm ci
 
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:github-action
-          args: --exit-node=100.100.1.1 --exit-node-allow-lan-access=true
+      - name: Configure WireGuard
+        env:
+          WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
+          WIREGUARD_PUBLIC_KEY: ${{ secrets.WIREGUARD_PUBLIC_KEY }}
+          WIREGUARD_ADDRESS: ${{ vars.WIREGUARD_ADDRESS }}
+          WIREGUARD_ALLOWED_IPS: 0.0.0.0/0
+          WIREGUARD_ENDPOINT: ${{ vars.WIREGUARD_ENDPOINT }}
+        run: ./scripts/setup-wireguard.sh
+
+      # - name: Connect to Tailscale
+      #   uses: tailscale/github-action@v4
+      #   with:
+      #     oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      #     oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+      #     tags: tag:github-action
+      #     args: --exit-node=100.100.1.1 --exit-node-allow-lan-access=true
 
       - name: Refresh manifest when needed
         id: manifest
@@ -65,9 +74,14 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
         run: ./scripts/refresh-manifest.sh --force
 
-      - name: Disconnect Tailscale
+
+      - name: Stop WireGuard
         if: always()
-        run: sudo tailscale logout
+        run: sudo wg-quick down wg0 || true
+
+      # - name: Disconnect Tailscale
+      #   if: always()
+      #   run: sudo tailscale logout
 
       - name: Push committed changes
         if: always()
