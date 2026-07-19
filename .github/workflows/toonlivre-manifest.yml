@@ -87,7 +87,13 @@ jobs:
       - name: Force refresh manifest when requested
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
         run: ./scripts/refresh-manifest.sh --force
-          
+
+      - name: Clean up WireGuard
+        if: always()
+        run: |
+          sudo ip link delete dev wg0 || true
+          rm -f privatekey
+
       - name: Push committed changes
         run: git push
 
