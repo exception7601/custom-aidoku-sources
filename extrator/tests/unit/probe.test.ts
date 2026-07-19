@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ExtractedManifest } from '../../src/manifest.js';
 import {
+  buildNoBundleCandidatesError,
   classifyBundleProbe,
   classifyBundleUrlMatch,
   selectProbeCandidateUrls,
@@ -96,11 +97,13 @@ describe('manifest bundle probe', () => {
     const manifest = makeManifest();
     const probe = classifyBundleProbe({
       entryUrl: 'https://toonlivre.net/',
+      entryStatus: 200,
       manifest,
       candidateUrls: ['https://toonlivre.net/assets/index-new.js'],
       checkedBundles: [
         {
           url: 'https://toonlivre.net/assets/index-new.js',
+          status: 200,
           hash: 'bundle-hash',
         },
       ],
@@ -115,11 +118,13 @@ describe('manifest bundle probe', () => {
     const manifest = makeManifest();
     const probe = classifyBundleProbe({
       entryUrl: 'https://toonlivre.net/',
+      entryStatus: 200,
       manifest,
       candidateUrls: ['https://toonlivre.net/assets/index-new.js'],
       checkedBundles: [
         {
           url: 'https://toonlivre.net/assets/index-new.js',
+          status: 200,
           hash: 'different-hash',
         },
       ],
@@ -127,5 +132,28 @@ describe('manifest bundle probe', () => {
 
     expect(probe.changed).toBe(true);
     expect(probe.reason).toBe('bundle-changed');
+  });
+
+  it('formats an actionable error when the entry HTML exposes no same-origin bundles', () => {
+    const message = buildNoBundleCandidatesError({
+      entryUrl: 'https://toonlivre.net/',
+      entryStatus: 403,
+      discovery: {
+        scriptUrls: ['https://static.cloudflareinsights.com/beacon.min.js'],
+        blockedByProtection: true,
+        reason: 'HTML response looks like a Cloudflare or redirect gate.',
+      },
+      body: '<html><title>403</title><body>cloudflare challenge</body></html>',
+    });
+
+    expect(message).toContain('Entry status: 403');
+    expect(message).toContain('Blocked by protection: yes');
+    expect(message).toContain(
+      'Discovered scripts: https://static.cloudflareinsights.com/beacon.min.js'
+    );
+    expect(message).toContain('Hint: HTML response looks like a Cloudflare or redirect gate.');
+    expect(message).toContain(
+      'Body: <html><title>403</title><body>cloudflare challenge</body></html>'
+    );
   });
 });

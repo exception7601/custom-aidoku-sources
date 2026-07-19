@@ -1,14 +1,18 @@
-import { analyzeHtmlDocument } from './html.js';
+import { analyzeHtmlDocument, type HtmlDiscoveryResult } from './html.js';
 import { fetchText, sha256 } from './http.js';
 import type { ExtractedManifest } from './manifest.js';
 
+const FAILURE_BODY_LIMIT = 220;
+
 export interface ProbedBundleCandidate {
   url: string;
+  status: number;
   hash: string;
 }
 
 export interface BundleProbeResult {
   entryUrl: string;
+  entryStatus: number;
   manifestBundleUrl?: string;
   manifestBundleHash: string;
   candidateUrls: string[];
@@ -38,7 +42,12 @@ export async function probeManifestBundle(
 
   if (candidateUrls.length === 0) {
     throw new Error(
-      'No same-origin JavaScript bundle candidates were discovered from the entry HTML.'
+      buildNoBundleCandidatesError({
+        entryUrl: htmlResponse.url,
+        entryStatus: htmlResponse.status,
+        discovery,
+        body: htmlResponse.body,
+      })
     );
   }
 
@@ -46,6 +55,7 @@ export async function probeManifestBundle(
   if (urlMatch) {
     return {
       entryUrl: htmlResponse.url,
+      entryStatus: htmlResponse.status,
       manifestBundleUrl: options.manifest.bundle.url,
       manifestBundleHash: options.manifest.bundle.hash,
       candidateUrls,
@@ -62,6 +72,7 @@ export async function probeManifestBundle(
 
       return {
         url: response.url,
+        status: response.status,
         hash: sha256(response.body),
       } satisfies ProbedBundleCandidate;
     })
@@ -69,6 +80,7 @@ export async function probeManifestBundle(
 
   return classifyBundleProbe({
     entryUrl: htmlResponse.url,
+    entryStatus: htmlResponse.status,
     manifest: options.manifest,
     candidateUrls,
     checkedBundles,
@@ -103,6 +115,7 @@ export function classifyBundleUrlMatch(
 
 export function classifyBundleProbe(args: {
   entryUrl: string;
+  entryStatus: number;
   manifest: ExtractedManifest;
   candidateUrls: string[];
   checkedBundles: ProbedBundleCandidate[];
@@ -113,6 +126,7 @@ export function classifyBundleProbe(args: {
 
   return {
     entryUrl: args.entryUrl,
+    entryStatus: args.entryStatus,
     manifestBundleUrl: args.manifest.bundle.url,
     manifestBundleHash: args.manifest.bundle.hash,
     candidateUrls: args.candidateUrls,
@@ -121,4 +135,37 @@ export function classifyBundleProbe(args: {
     reason: hashMatch ? 'bundle-hash-match' : 'bundle-changed',
     matchedBundleUrl: hashMatch?.url,
   };
+}
+
+export function buildNoBundleCandidatesError(args: {
+  entryUrl: string;
+  entryStatus: number;
+  discovery: HtmlDiscoveryResult;
+  body: string;
+}): string {
+  const lines = [
+    'No same-origin JavaScript bundle candidates were discovered from the entry HTML.',
+    `Entry URL: ${args.entryUrl}`,
+    `Entry status: ${args.entryStatus}`,
+    `Blocked by protection: ${args.discovery.blockedByProtection ? 'yes' : 'no'}`,
+  ];
+  const discoveredScripts =
+    args.discovery.scriptUrls.length > 0 ? args.discovery.scriptUrls : ['none'];
+  const bodySnippet = summarizeBody(args.body);
+
+  lines.push(`Discovered scripts: ${discoveredScripts.join(', ')}`);
+
+  if (args.discovery.reason) {
+    lines.push(`Hint: ${args.discovery.reason}`);
+  }
+
+  if (bodySnippet) {
+    lines.push(`Body: ${bodySnippet}`);
+  }
+
+  return lines.join('\n');
+}
+
+function summarizeBody(body: string): string {
+  return body.replace(/\s+/g, ' ').trim().slice(0, FAILURE_BODY_LIMIT);
 }

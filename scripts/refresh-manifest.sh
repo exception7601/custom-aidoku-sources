@@ -26,16 +26,21 @@ else
     --manifest "$MANIFEST_PATH" \
     --site-url "$SITE_URL" > "$TEMP_PROBE_PATH"
 
-  changed="$(jq -r '.changed' "$TEMP_PROBE_PATH")"
-  reason="$(jq -r '.reason' "$TEMP_PROBE_PATH")"
-  matched_bundle_url="$(jq -r '.matchedBundleUrl // empty' "$TEMP_PROBE_PATH")"
+  CHANGED="$(jq -r '.changed' "$TEMP_PROBE_PATH")"
+  REASON="$(jq -r '.reason' "$TEMP_PROBE_PATH")"
+  ENTRY_STATUS="$(jq -r '.entryStatus' "$TEMP_PROBE_PATH")"
+  MATCHED_BUNDLE_URL="$(jq -r '.matchedBundleUrl // empty' "$TEMP_PROBE_PATH")"
+  CHECKED_BUNDLE_LOGS="$(jq -r '.checkedBundles[]? | "[manifest] checked-bundle status=\(.status) url=\(.url)"' "$TEMP_PROBE_PATH")"
 
-  echo "[manifest] probe changed=$changed reason=$reason"
-  if [[ -n "$matched_bundle_url" ]]; then
-    echo "[manifest] matched-bundle-url: $matched_bundle_url"
+  echo "[manifest] probe entry-status=$ENTRY_STATUS changed=$CHANGED reason=$REASON"
+  if [[ -n "$MATCHED_BUNDLE_URL" ]]; then
+    echo "[manifest] matched-bundle-url: $MATCHED_BUNDLE_URL"
+  fi
+  if [[ -n "$CHECKED_BUNDLE_LOGS" ]]; then
+    printf '%s\n' "$CHECKED_BUNDLE_LOGS"
   fi
 
-  if [[ "$changed" != "true" ]]; then
+  if [[ "$CHANGED" != "true" ]]; then
     echo "[manifest] skip: live bundle still matches the saved manifest"
     exit 0
   fi
