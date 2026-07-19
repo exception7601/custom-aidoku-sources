@@ -106,11 +106,14 @@ pub(crate) struct DecryptManifest {
 pub(crate) enum ManifestPassphraseStrategy {
 	#[serde(rename = "utc-md5-derived")]
 	UtcMd5Derived {
+		#[serde(rename = "dateFormat")]
 		date_format: String,
 		prefix: String,
 		salt: String,
 		suffix: String,
+		#[serde(rename = "digestEncoding")]
 		digest_encoding: String,
+		#[serde(rename = "digestSlice")]
 		digest_slice: ManifestDigestSlice,
 	},
 }

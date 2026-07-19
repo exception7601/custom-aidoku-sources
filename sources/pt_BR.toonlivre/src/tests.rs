@@ -3,6 +3,7 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Manga, MangaStatus,
 	PageContent, Source,
 	alloc::{String, Vec},
+	imports::net::Request,
 };
 use aidoku_test::aidoku_test;
 
@@ -13,6 +14,9 @@ const SAMPLE_CHAPTER_ID: &str = "cap-dd9e898d-522_5";
 const SAMPLE_CHAPTER_NUMBER: &str = "522.5";
 const SAMPLE_MANGA_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses";
 const SAMPLE_CHAPTER_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses/522.5";
+const REMOTE_MANIFEST_URL_FOR_TESTS: &str =
+	"https://exception7601.github.io/custom-aidoku-sources/manifest.json";
+const REMOTE_MANIFEST_USER_AGENT_FOR_TESTS: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 
 fn make_id_manga() -> Manga {
 	Manga {
@@ -125,6 +129,50 @@ fn helper_parses_deep_links() {
 	}
 
 	assert!(deep_link_result("https://toonlivre.net/favorites").is_none());
+}
+
+#[aidoku_test]
+fn manifest_fetches_remote_manifest() {
+	let response = must(
+		"remote manifest request",
+		Request::get(REMOTE_MANIFEST_URL_FOR_TESTS)
+			.and_then(|request| {
+				request
+					.header("accept", "application/json")
+					.header("accept-language", ACCEPT_LANGUAGE)
+					.header("user-agent", REMOTE_MANIFEST_USER_AGENT_FOR_TESTS)
+					.send()
+			})
+			.map_err(|error| format!("request error: {error:?}")),
+	);
+	let status = response.status_code();
+	let body = must(
+		"remote manifest response body",
+		response
+			.get_string()
+			.map_err(|error| format!("body error: {error:?}")),
+	);
+	assert!(
+		(200..300).contains(&status),
+		"remote manifest status was {status}; body: {}",
+		body.chars().take(200).collect::<String>()
+	);
+	let manifest = must(
+		"parse remote manifest json",
+		serde_json::from_str::<ClientManifest>(&body).map_err(|error| {
+			format!(
+				"json error: {error:?}; body: {}",
+				body.chars().take(200).collect::<String>()
+			)
+		}),
+	);
+	assert_eq!(manifest.schema_version, 1);
+	assert_eq!(manifest.source_id, "pt_BR.toonlivre");
+	assert_eq!(manifest.site_url, "https://toonlivre.net");
+	assert_eq!(manifest.request.signature_header, "x-toon-signature");
+	assert_eq!(manifest.request.verify_header, "x-toon-verify");
+	assert_eq!(manifest.request.session_cookie.name, "toon_v");
+	assert_eq!(manifest.decrypt.data_key_header, "x-toon-datakey");
 }
 
 #[aidoku_test]
