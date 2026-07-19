@@ -47,48 +47,16 @@ jobs:
       - name: Install extractor dependencies
         run: env -C extrator npm ci
 
-      - name: Install Wireguard
-        run: sudo apt-get update && sudo apt-get install -y wireguard
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          args: --exit-node=pi --exit-node-allow-lan-access=true
 
-      - name: Write private key
-        run: echo "${{ secrets.WIREGUARD_PRIVATE_KEY }}" > privatekey
-
-      - name: Create interface
-        run: sudo ip link add dev wg0 type wireguard
-
-      - name: Add address
-        run: sudo ip address add dev wg0 ${{ vars.WIREGUARD_ADDRESS }} 
-
-      - name: Configure WireGuard
+      - name: Verify Outbound IP
         run: |
-          sudo wg set wg0 \
-            listen-port ${{ vars.WIREGUARD_LISTEN_PORT }} \
-            private-key privatekey \
-            peer "${{ secrets.WIREGUARD_PUBLIC_KEY }}" \
-            allowed-ips "${{ vars.WIREGUARD_ALLOWED_IPS }}" \
-            endpoint "${{ vars.WIREGUARD_ENDPOINT }}"
-
-      - name: Bring interface up
-        run: sudo ip link set up dev wg0
-      
-      - name: Route traffic through WireGuard
-        run: |
-          sudo ip route add 0.0.0.0/1 dev wg0
-
-      - name: Configure DNS
-        run: |
-          sudo resolvectl dns wg0 1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001
-          sudo resolvectl domain wg0 '~.'
-
-      - name: Status VPN
-        run: |
-          echo "WireGuard status:"
-          sudo wg show
-          echo "Routes:"
-          ip route
-          echo "Public IP:"
-          curl --fail --silent --show-error https://ifconfig.me
-          echo
+          echo "Your current public IP through the Exit Node is:"
+          curl -s https://ifconfig.me
 
       - name: Refresh manifest when needed
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
@@ -98,11 +66,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
         run: ./scripts/refresh-manifest.sh --force
 
-      - name: Clean up WireGuard
+      - name: Disconnect Tailscale
         if: always()
-        run: |
-          sudo ip link delete dev wg0 || true
-          rm -f privatekey
+        run: sudo tailscale logout
 
       - name: Push committed changes
         run: git push
