@@ -14,13 +14,11 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-	ACCEPT_LANGUAGE, BASE_URL, current_decryption_passphrase, percent_encode,
-	request_verification_token,
+	BASE_URL, active_manifest, current_decryption_passphrase_for_manifest,
+	generate_session_cookie_value, percent_encode, signature_value_for_url,
 };
 
 const API_BASE: &str = "https://toonlivre.net/api";
-const API_SIGNATURE_DEFAULT: &str = "t8v_decoy9";
-const API_SIGNATURE_CHAPTER: &str = "t8v_authX9";
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
@@ -166,69 +164,65 @@ pub(crate) struct ApiChapterDetails {
 }
 
 pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
-	request_json(
-		&format!("{API_BASE}/mangas/releases?page={page}&limit={limit}"),
-		false,
-	)
+	request_json(&format!(
+		"{API_BASE}/mangas/releases?page={page}&limit={limit}"
+	))
 }
 
 pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiListResponse> {
 	let encoded = percent_encode(query.trim());
-	request_json(
-		&format!(
-			"{API_BASE}/mangas/search?q={encoded}&page={page}&limit={limit}&sortBy=updated&sortOrder=desc"
-		),
-		false,
-	)
+	request_json(&format!(
+		"{API_BASE}/mangas/search?q={encoded}&page={page}&limit={limit}&sortBy=updated&sortOrder=desc"
+	))
 }
 
 pub(crate) fn fetch_manga_by_id(id: &str) -> Result<ApiMangaById> {
-	request_json(&format!("{API_BASE}/mangas/{id}"), false)
+	request_json(&format!("{API_BASE}/mangas/{id}"))
 }
 
 pub(crate) fn fetch_manga_reader(id: &str) -> Result<ApiReaderManga> {
-	request_json(&format!("{API_BASE}/mangas/{id}/reader"), false)
+	request_json(&format!("{API_BASE}/mangas/{id}/reader"))
 }
 
 pub(crate) fn fetch_manga_by_slug(slug: &str) -> Result<ApiMangaBySlug> {
-	request_json(
-		&format!(
-			"{API_BASE}/manga-by-slug/{}",
-			percent_encode(slug.trim_matches('/'))
-		),
-		false,
-	)
+	request_json(&format!(
+		"{API_BASE}/manga-by-slug/{}",
+		percent_encode(slug.trim_matches('/'))
+	))
 }
 
 pub(crate) fn fetch_chapter(manga_id: &str, chapter_id: &str) -> Result<ApiChapterDetails> {
-	request_json(
-		&format!("{API_BASE}/mangas/{manga_id}/chapters/{chapter_id}"),
-		true,
-	)
+	request_json(&format!(
+		"{API_BASE}/mangas/{manga_id}/chapters/{chapter_id}"
+	))
 }
 
-fn request_json<T>(url: &str, is_chapter_endpoint: bool) -> Result<T>
+fn request_json<T>(url: &str) -> Result<T>
 where
 	T: serde::de::DeserializeOwned,
 {
-	let verification_token = request_verification_token();
-	let cookie = format!("toon_v={verification_token}");
-	let response = Request::get(url)?
+	let manifest = active_manifest();
+	let verification_token = generate_session_cookie_value(&manifest);
+	let cookie = format!(
+		"{}={verification_token}",
+		manifest.request.session_cookie.name
+	);
+	let mut request = Request::get(url)?
 		.header("accept", "application/json, text/plain, */*")
-		.header("accept-language", ACCEPT_LANGUAGE)
+		.header("accept-language", &manifest.request.accept_language)
+		.header("user-agent", &manifest.request.user_agent)
 		.header("origin", BASE_URL)
 		.header("referer", BASE_URL)
-		.header(
-			"x-toon-signature",
-			if is_chapter_endpoint {
-				API_SIGNATURE_CHAPTER
-			} else {
-				API_SIGNATURE_DEFAULT
-			},
-		)
-		.header("x-toon-verify", &verification_token)
-		.header("cookie", &cookie)
-		.send()?;
+		.header("cookie", &cookie);
+	request.set_header(
+		manifest.request.signature_header.as_str(),
+		signature_value_for_url(&manifest, url),
+	);
+	request.set_header(&manifest.request.verify_header, &verification_token);
+	for header_name in manifest.request.session_cookie.mirrors_into.iter() {
+		request.set_header(header_name, &verification_token);
+	}
+	let response = request.send()?;
 	let status = response.status_code();
 	let data_key = response.get_header("x-toon-datakey");
 	let body = response.get_string()?;
@@ -238,7 +232,7 @@ where
 		bail!("{}", message);
 	}
 	let body = match data_key {
-		Some(data_key) => decrypt_response_payload(&body, &data_key)?,
+		Some(data_key) => decrypt_response_payload(&body, &data_key, &manifest)?,
 		None => body,
 	};
 	serde_json::from_str(&body)
@@ -250,7 +244,11 @@ fn extract_error_message(body: &str) -> Option<String> {
 	value.get("error").and_then(Value::as_str).map(String::from)
 }
 
-fn decrypt_response_payload(body: &str, data_key: &str) -> Result<String> {
+fn decrypt_response_payload(
+	body: &str,
+	data_key: &str,
+	manifest: &crate::ClientManifest,
+) -> Result<String> {
 	let value: Value = serde_json::from_str(body)
 		.map_err(|err| AidokuError::Message(format!("JSON parse error: {err}")))?;
 	let encrypted_payload = value
@@ -258,7 +256,10 @@ fn decrypt_response_payload(body: &str, data_key: &str) -> Result<String> {
 		.or_else(|| value.as_object().and_then(|object| object.values().next()))
 		.and_then(Value::as_str)
 		.ok_or_else(|| AidokuError::Message(String::from("Missing encrypted payload")))?;
-	decrypt_cryptojs_rabbit(encrypted_payload, &current_decryption_passphrase())
+	decrypt_cryptojs_rabbit(
+		encrypted_payload,
+		&current_decryption_passphrase_for_manifest(manifest),
+	)
 }
 
 fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<String> {

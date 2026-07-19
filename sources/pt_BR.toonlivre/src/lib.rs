@@ -6,10 +6,12 @@ pub(crate) const BASE_URL: &str = "https://toonlivre.net";
 pub(crate) const ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,pt;q=0.8";
 
 mod api;
+mod manifest;
 mod source;
 mod utils;
 
 pub(crate) use api::*;
+pub(crate) use manifest::*;
 pub(crate) use source::ToonLivre;
 pub(crate) use utils::*;
 

@@ -1,9 +1,7 @@
 use aidoku::{
 	Chapter, DeepLinkResult, Manga, MangaStatus,
 	alloc::{String, format},
-	imports::std::current_date,
 };
-use md5::{Digest, Md5};
 use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
 
 use crate::BASE_URL;
@@ -16,27 +14,6 @@ const RESERVED_PATHS: [&str; 6] = [
 	"api",
 	"password-reset",
 ];
-const DECRYPTION_SALT: &str = "toonlivre.tv::v8";
-const DECRYPTION_SUFFIX: &str = "t17_4v19_b2";
-const DECRYPTION_PREFIX: &str = "Dealer-Critter-Catnip4";
-
-pub(crate) fn request_verification_token() -> String {
-	let seed = format!(
-		"{}:{DECRYPTION_PREFIX}:{}",
-		current_date(),
-		current_decryption_passphrase()
-	);
-	let mut hasher = Md5::new();
-	hasher.update(seed.as_bytes());
-	let digest = hasher.finalize();
-	let mut token = String::new();
-	for byte in digest.iter() {
-		token.push(hex_digit(byte >> 4));
-		token.push(hex_digit(byte & 0x0F));
-	}
-	token.truncate(26);
-	token
-}
 
 pub(crate) fn manga_url_from_slug(slug: &str) -> String {
 	format!("{BASE_URL}/{}", slug.trim_matches('/'))
@@ -277,47 +254,6 @@ pub(crate) fn chapter_number_from_url(url: &str) -> Option<String> {
 		DeepLinkResult::Chapter { key, .. } => Some(key),
 		DeepLinkResult::Manga { .. } | DeepLinkResult::Listing(_) => None,
 	}
-}
-
-pub(crate) fn current_decryption_passphrase() -> String {
-	let date = current_utc_date_string();
-	let seed = format!("{date}{DECRYPTION_SALT}{DECRYPTION_SUFFIX}");
-	let mut hasher = Md5::new();
-	hasher.update(seed.as_bytes());
-	let digest = hasher.finalize();
-	let mut suffix = String::new();
-	for byte in digest[..4].iter() {
-		suffix.push(hex_digit(byte >> 4));
-		suffix.push(hex_digit(byte & 0x0F));
-	}
-	format!("{DECRYPTION_PREFIX}{suffix}")
-}
-
-fn hex_digit(value: u8) -> char {
-	match value {
-		0..=9 => (b'0' + value) as char,
-		_ => (b'a' + (value - 10)) as char,
-	}
-}
-
-fn current_utc_date_string() -> String {
-	let days = current_date().div_euclid(86_400);
-	let (year, month, day) = civil_from_days(days);
-	format!("{year:04}-{month:02}-{day:02}")
-}
-
-fn civil_from_days(days_since_unix_epoch: i64) -> (i32, u32, u32) {
-	let z = days_since_unix_epoch + 719_468;
-	let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-	let doe = z - era * 146_097;
-	let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-	let y = yoe + era * 400;
-	let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-	let mp = (5 * doy + 2) / 153;
-	let day = doy - (153 * mp + 2) / 5 + 1;
-	let month = mp + if mp < 10 { 3 } else { -9 };
-	let year = y + if month <= 2 { 1 } else { 0 };
-	(year as i32, month as u32, day as u32)
 }
 
 pub(crate) fn percent_encode(input: &str) -> String {

@@ -62,10 +62,33 @@ fn helper_slugifies_titles_and_formats_chapters() {
 	assert_eq!(chapter_segment("05"), "05");
 	assert_eq!(chapter_segment("105"), "105");
 	assert_eq!(chapter_segment("522.5"), "522.5");
+	let manifest = bundled_manifest();
+	let token = request_verification_token();
 	assert!(chapter_numbers_match("05", "5"));
 	assert!(chapter_numbers_match("005", "5"));
+	assert_eq!(manifest.schema_version, 1);
+	assert_eq!(manifest.source_id, "pt_BR.toonlivre");
+	assert_eq!(manifest.site_url, "https://toonlivre.net");
+	assert!(manifest.request.user_agent.contains("Mozilla/5.0"));
+	assert_eq!(manifest.request.accept_language, "en-US,en;q=0.9,pt;q=0.8");
+	assert_eq!(
+		signature_value_for_url(
+			&manifest,
+			"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5"
+		),
+		"t8v_authX9"
+	);
+	assert_eq!(
+		signature_value_for_url(&manifest, SAMPLE_MANGA_URL),
+		"t8v_decoy9"
+	);
 	assert_eq!(current_decryption_passphrase().len(), 30);
-	assert_eq!(request_verification_token().len(), 26);
+	assert_eq!(token.len(), 26);
+	assert!(
+		token
+			.chars()
+			.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit())
+	);
 }
 
 #[aidoku_test]
