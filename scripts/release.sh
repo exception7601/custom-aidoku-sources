@@ -21,3 +21,5 @@ rm -rf "$repo_root/public"
   cd "$repo_root"
   aidoku build sources/*/package.aix --name "Aidoku Custom Sources"
 )
+
+cp "$repo_root/manifest/manifest.json" "$repo_root/public/manifest.json"

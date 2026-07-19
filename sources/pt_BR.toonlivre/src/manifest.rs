@@ -12,7 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::{ACCEPT_LANGUAGE, BASE_URL};
 
 const BUNDLED_MANIFEST_JSON: &str = include_str!("../res/manifest.json");
-const REMOTE_MANIFEST_URL: &str = "https://raw.githubusercontent.com/exception7601/custom-aidoku-sources/main/manifest/manifest.json";
+const REMOTE_MANIFEST_URL: &str =
+	"https://exception7601.github.io/custom-aidoku-sources/manifest.json";
 const MANIFEST_CACHE_KEY: &str = "toonlivre.manifest.json";
 const MANIFEST_CACHE_UPDATED_AT_KEY: &str = "toonlivre.manifest.updated-at";
 const MANIFEST_REQUEST_COUNTER_KEY: &str = "toonlivre.manifest.request-counter";

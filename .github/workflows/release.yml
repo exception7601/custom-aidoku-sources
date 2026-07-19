@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "sources/**"
+      - "manifest/**"
       - ".github/workflows/release.yml"
   workflow_dispatch:
 
@@ -93,6 +94,9 @@ jobs:
 
       - name: Build release artifacts
         run: ./scripts/release.sh
+
+      - name: Copy manifest into `public`
+        run: cp manifest/manifest.json public/manifest.json
 
       - name: Commit release metadata
         run: |

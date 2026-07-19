@@ -5,7 +5,6 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 INPUT_URL="${1:-https://toonlivre.net/}"
 MANIFEST_DIR="$REPO_ROOT/manifest"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/sources/pt_BR.toonlivre/res/manifest.json"
-TIMESTAMP="$(date '+%Y%m%d-%H%M')"
 EPOCH_SECONDS="$(date +%s)"
 TEMP_MANIFEST_PATH="$(mktemp)"
 NODE_BIN="${NODE_BIN:-$(dirname "$(command -v npm)")/node}"
@@ -27,5 +26,5 @@ env -C "$REPO_ROOT/extrator" \
   --out "$TEMP_MANIFEST_PATH" >/dev/null
 
 jq -c . "$TEMP_MANIFEST_PATH" > "$MANIFEST_DIR/manifest.json"
-cp "$MANIFEST_DIR/manifest.json" "$MANIFEST_DIR/manifest_v${TIMESTAMP}.json"
+cp "$MANIFEST_DIR/manifest.json" "$MANIFEST_DIR/manifest_v${EPOCH_SECONDS}.json"
 cp "$MANIFEST_DIR/manifest.json" "$SOURCE_FALLBACK_PATH"
