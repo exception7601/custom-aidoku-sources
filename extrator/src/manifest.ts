@@ -14,6 +14,17 @@ export const signatureRuleSchema = z
     message: 'A signature rule must define `default` or `when`.',
   });
 
+export const dynamicSignatureStrategySchema = z.object({
+  kind: z.literal('time-sha256-base64'),
+  timestampDivisor: z.number().int().positive(),
+  salt: z.string().min(1),
+  routeSelector: z.object({
+    whenUrlContains: z.string().min(1),
+    whenMatched: z.string().min(1),
+    otherwise: z.string().min(1),
+  }),
+});
+
 export const sessionCookieGeneratorSchema = z.object({
   kind: z.literal('random-base36-concat'),
   segments: z
@@ -51,19 +62,28 @@ export const manifestSchema = z.object({
     hash: z.string().min(1),
     discoveredFrom: z.enum(['cli', 'html', 'file']),
   }),
-  request: z.object({
-    userAgent: z.string().min(1),
-    acceptLanguage: z.string().min(1),
-    signatureHeader: z.string().min(1),
-    signatureRules: z.array(signatureRuleSchema).min(1),
-    verifyHeader: z.string().min(1),
-    includeCredentials: z.boolean(),
-    sessionCookie: z.object({
-      name: z.string().min(1),
-      generator: sessionCookieGeneratorSchema,
-      mirrorsInto: z.array(z.string().min(1)).min(1),
-    }),
-  }),
+  request: z
+    .object({
+      userAgent: z.string().min(1),
+      acceptLanguage: z.string().min(1),
+      signatureHeader: z.string().min(1),
+      signatureRules: z.array(signatureRuleSchema),
+      signatureStrategy: dynamicSignatureStrategySchema.optional(),
+      verifyHeader: z.string().min(1),
+      includeCredentials: z.boolean(),
+      sessionCookie: z.object({
+        name: z.string().min(1),
+        generator: sessionCookieGeneratorSchema,
+        mirrorsInto: z.array(z.string().min(1)).min(1),
+      }),
+    })
+    .refine(
+      (request) => request.signatureRules.length > 0 || request.signatureStrategy !== undefined,
+      {
+        message: 'Request config must define `signatureRules` or `signatureStrategy`.',
+        path: ['signatureRules'],
+      }
+    ),
   decrypt: z.object({
     dataKeyHeader: z.string().min(1),
     payloadSelector: z.literal('header-named-or-first-string'),
@@ -83,6 +103,7 @@ export const manifestSchema = z.object({
 });
 
 export type SignatureRule = z.infer<typeof signatureRuleSchema>;
+export type DynamicSignatureStrategy = z.infer<typeof dynamicSignatureStrategySchema>;
 export type SessionCookieGenerator = z.infer<typeof sessionCookieGeneratorSchema>;
 export type PassphraseStrategy = z.infer<typeof passphraseSchema>;
 export type ExtractedManifest = z.infer<typeof manifestSchema>;

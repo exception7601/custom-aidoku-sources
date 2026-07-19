@@ -196,7 +196,7 @@ function buildRecognition(
 
   const complete =
     request.signatureHeader &&
-    request.signatureRules.length > 0 &&
+    (request.signatureRules.length > 0 || request.signatureStrategy) &&
     request.verifyHeader &&
     request.dataKeyHeader &&
     session.cookieName &&
@@ -237,6 +237,7 @@ function buildRecognition(
       acceptLanguage: HTTP_ACCEPT_LANGUAGE,
       signatureHeader: request.signatureHeader,
       signatureRules: request.signatureRules,
+      signatureStrategy: request.signatureStrategy,
       verifyHeader: request.verifyHeader,
       includeCredentials: true,
       sessionCookie: {

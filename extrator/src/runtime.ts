@@ -1,7 +1,11 @@
 import CryptoJS from 'crypto-js';
 
-import { md5 } from './http.js';
-import type { ExtractedManifest, SignatureRule } from './manifest.js';
+import { md5, sha256 } from './http.js';
+import type {
+  DynamicSignatureStrategy,
+  ExtractedManifest,
+  SignatureRule,
+} from './manifest.js';
 
 export interface RequestContext {
   headers: Headers;
@@ -11,7 +15,7 @@ export interface RequestContext {
 
 export function buildRequestContext(manifest: ExtractedManifest, url: string): RequestContext {
   const sessionValue = generateSessionCookieValue(manifest);
-  const signatureValue = selectSignatureValue(manifest.request.signatureRules, url);
+  const signatureValue = buildSignatureValue(manifest, url);
   const headers = new Headers({
     'user-agent': manifest.request.userAgent,
     'accept-language': manifest.request.acceptLanguage,
@@ -33,6 +37,14 @@ export function generateSessionCookieValue(manifest: ExtractedManifest): string 
     .join('');
 }
 
+export function buildSignatureValue(manifest: ExtractedManifest, url: string): string {
+  if (manifest.request.signatureStrategy) {
+    return deriveDynamicSignatureValue(manifest.request.signatureStrategy, url);
+  }
+
+  return selectSignatureValue(manifest.request.signatureRules, url);
+}
+
 export function selectSignatureValue(rules: SignatureRule[], url: string): string {
   for (const rule of rules) {
     if (rule.default === true) {
@@ -50,6 +62,21 @@ export function selectSignatureValue(rules: SignatureRule[], url: string): strin
   }
 
   return defaultRule.value;
+}
+
+export function deriveDynamicSignatureValue(
+  strategy: DynamicSignatureStrategy,
+  url: string,
+  now = Date.now()
+): string {
+  const timestamp = Math.floor(now / strategy.timestampDivisor);
+  const routeKind = url.includes(strategy.routeSelector.whenUrlContains)
+    ? strategy.routeSelector.whenMatched
+    : strategy.routeSelector.otherwise;
+  const payload = `${timestamp}:${routeKind}:${strategy.salt}`;
+  const digest = sha256(payload);
+
+  return Buffer.from(`${timestamp}:${digest}`).toString('base64');
 }
 
 export function derivePassphrase(manifest: ExtractedManifest, date = new Date()): string {

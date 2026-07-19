@@ -66,6 +66,10 @@ export function evaluateStatic(
     return evaluateBinding(path.scope, node.name, context);
   }
 
+  if (t.isMemberExpression(node)) {
+    return evaluateMemberExpression(path as NodePath<t.MemberExpression>, context);
+  }
+
   if (t.isArrayExpression(node)) {
     const output: StaticValue[] = [];
 
@@ -178,6 +182,19 @@ export function evaluateStatic(
   return undefined;
 }
 
+function evaluateMemberExpression(
+  path: NodePath<t.MemberExpression>,
+  _context: ReadonlyMap<string, StaticValue>
+): StaticValue | undefined {
+  if (!path.node.computed && t.isIdentifier(path.node.object, { name: 'Math' })) {
+    if (t.isIdentifier(path.node.property, { name: 'PI' })) {
+      return Math.PI;
+    }
+  }
+
+  return undefined;
+}
+
 function evaluateBinding(
   scope: Scope,
   name: string,
@@ -226,6 +243,16 @@ function evaluateCallExpression(
     }
 
     return String(value);
+  }
+
+  if (calleePath.isIdentifier({ name: 'btoa' })) {
+    const firstArgument = path.get('arguments.0');
+    if (!firstArgument || Array.isArray(firstArgument)) {
+      return undefined;
+    }
+
+    const value = evaluateStatic(firstArgument as AnyNodePath, context);
+    return typeof value === 'string' ? Buffer.from(value).toString('base64') : undefined;
   }
 
   if (calleePath.isMemberExpression()) {

@@ -10,6 +10,8 @@ By default, the script probes the live site and only regenerates the manifest
 when the bundle changed.
 Use `--force` to skip the probe and regenerate immediately.
 Use `--no-commit` to skip the local manifest commit.
+The script also downloads the matching live bundle snapshot into
+`extrator/bundles/` before extraction.
 EOF
 }
 
@@ -20,27 +22,49 @@ MANIFEST_RELATIVE_PATH="manifest/manifest.json"
 SOURCE_FALLBACK_RELATIVE_PATH="sources/pt_BR.toonlivre/res/manifest.json"
 MANIFEST_PATH="$REPO_ROOT/$MANIFEST_RELATIVE_PATH"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/$SOURCE_FALLBACK_RELATIVE_PATH"
+EXTRATOR_DIR="$REPO_ROOT/extrator"
+BUNDLES_DIR="$EXTRATOR_DIR/bundles"
 NODE_BIN="${NODE_BIN:-$(dirname "$(command -v npm)")/node}"
-TSX_CLI_PATH="$REPO_ROOT/extrator/node_modules/tsx/dist/cli.mjs"
+DIST_CLI_PATH="$EXTRATOR_DIR/dist/cli.js"
 FORCE_REFRESH=0
 AUTO_COMMIT=1
 TEMP_PROBE_PATH="$(mktemp)"
+BUNDLE_INPUT_URL="$SITE_URL"
 
 trap 'rm -f "$TEMP_PROBE_PATH"' EXIT
 
 commit_manifest_changes() {
-  local MANIFEST_CHANGES=""
+  local manifest_changes=""
 
-  MANIFEST_CHANGES="$(git -C "$REPO_ROOT" status --short -- manifest "$SOURCE_FALLBACK_RELATIVE_PATH")"
-  if [[ -z "$MANIFEST_CHANGES" ]]; then
+  manifest_changes="$(git -C "$REPO_ROOT" status --short -- manifest "$SOURCE_FALLBACK_RELATIVE_PATH")"
+  if [[ -z "$manifest_changes" ]]; then
     echo "[manifest] no manifest changes to commit"
     return 0
   fi
 
-  printf '%s\n' "$MANIFEST_CHANGES"
+  printf '%s\n' "$manifest_changes"
   git -C "$REPO_ROOT" add manifest "$SOURCE_FALLBACK_RELATIVE_PATH"
   git -C "$REPO_ROOT" commit -m "Refresh ToonLivre manifest"
-  echo "[manifest] local commit created"
+  echo "[manifest] manifest commit created"
+}
+
+commit_bundle_snapshot_changes() {
+  local bundle_changes=""
+
+  bundle_changes="$(git -C "$REPO_ROOT" status --short -- extrator/bundles)"
+  if [[ -z "$bundle_changes" ]]; then
+    echo "[manifest] no bundle snapshot changes to commit"
+    return 0
+  fi
+
+  printf '%s\n' "$bundle_changes"
+  git -C "$REPO_ROOT" add extrator/bundles
+  git -C "$REPO_ROOT" commit -m "Archive ToonLivre bundle snapshot"
+  echo "[manifest] bundle snapshot commit created"
+}
+
+run_extrator() {
+  env -C "$EXTRATOR_DIR" "$NODE_BIN" dist/cli.js "$@"
 }
 
 while (($#)); do
@@ -73,13 +97,14 @@ while (($#)); do
   esac
 done
 
-if [[ ! -f "$TSX_CLI_PATH" ]]; then
+if [[ ! -f "$DIST_CLI_PATH" ]]; then
   echo "[manifest] installing extractor dependencies"
-  env -C "$REPO_ROOT/extrator" npm ci
+  env -C "$EXTRATOR_DIR" npm ci
+  env -C "$EXTRATOR_DIR" npm run build
 fi
 
-if [[ ! -f "$TSX_CLI_PATH" ]]; then
-  echo "[manifest] unable to locate tsx CLI after dependency install" >&2
+if [[ ! -f "$DIST_CLI_PATH" ]]; then
+  echo "[manifest] unable to locate built extractor CLI after dependency install" >&2
   exit 1
 fi
 
@@ -88,8 +113,7 @@ if [[ ! -f "$MANIFEST_PATH" ]]; then
 elif [[ "$FORCE_REFRESH" == "1" ]]; then
   echo "[manifest] force refresh enabled"
 else
-  env -C "$REPO_ROOT/extrator" \
-    "$NODE_BIN" node_modules/tsx/dist/cli.mjs src/cli.ts probe \
+  run_extrator probe \
     --manifest "$MANIFEST_PATH" \
     --site-url "$SITE_URL" > "$TEMP_PROBE_PATH"
 
@@ -112,12 +136,24 @@ else
     echo "[manifest] tip: rerun with --force to regenerate anyway"
     exit 0
   fi
+
+  if [[ -n "$MATCHED_BUNDLE_URL" ]]; then
+    BUNDLE_INPUT_URL="$MATCHED_BUNDLE_URL"
+  fi
 fi
 
-"$REPO_ROOT/scripts/extract-manifest.sh" "$SITE_URL"
+echo "[manifest] downloading bundle snapshot from: $BUNDLE_INPUT_URL"
+run_extrator download-bundle \
+  --bundle-url "$BUNDLE_INPUT_URL" \
+  --out-dir "$BUNDLES_DIR" >/dev/null
 
-env -C "$REPO_ROOT/extrator" \
-  "$NODE_BIN" node_modules/tsx/dist/cli.mjs src/cli.ts validate \
+if [[ "$AUTO_COMMIT" == "1" ]]; then
+  commit_bundle_snapshot_changes
+fi
+
+"$REPO_ROOT/scripts/extract-manifest.sh" "$BUNDLE_INPUT_URL"
+
+run_extrator validate \
   --manifest "$MANIFEST_PATH" >/dev/null
 
 echo "[manifest] refresh + validation completed"

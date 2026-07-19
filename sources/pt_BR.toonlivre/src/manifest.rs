@@ -7,8 +7,10 @@ use aidoku::{
 		std::current_date,
 	},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 use crate::{ACCEPT_LANGUAGE, BASE_URL};
 
@@ -24,6 +26,7 @@ const FALLBACK_DATA_KEY_HEADER: &str = "x-toon-datakey";
 const FALLBACK_COOKIE_NAME: &str = "toon_v";
 const FALLBACK_SIGNATURE_DEFAULT: &str = "t8v_decoy9";
 const FALLBACK_SIGNATURE_CHAPTER: &str = "t8v_authX9";
+const FALLBACK_DYNAMIC_SIGNATURE_SALT: &str = "My4xNDE=_1388";
 const FALLBACK_DECRYPTION_PREFIX: &str = "Dealer-Critter-Catnip4";
 const FALLBACK_DECRYPTION_SALT: &str = "toonlivre.tv::v8";
 const FALLBACK_DECRYPTION_SUFFIX: &str = "t17_4v19_b2";
@@ -44,7 +47,10 @@ pub(crate) struct ManifestRequest {
 	pub user_agent: String,
 	pub accept_language: String,
 	pub signature_header: String,
+	#[serde(default)]
 	pub signature_rules: Vec<ManifestSignatureRule>,
+	#[serde(default, rename = "signatureStrategy")]
+	pub signature_strategy: Option<ManifestSignatureStrategy>,
 	pub verify_header: String,
 	pub include_credentials: bool,
 	pub session_cookie: ManifestSessionCookie,
@@ -64,6 +70,27 @@ pub(crate) struct ManifestSignatureRule {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ManifestSignatureMatch {
 	pub url_contains: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub(crate) enum ManifestSignatureStrategy {
+	#[serde(rename = "time-sha256-base64")]
+	TimeSha256Base64 {
+		#[serde(rename = "timestampDivisor")]
+		timestamp_divisor: i64,
+		salt: String,
+		#[serde(rename = "routeSelector")]
+		route_selector: ManifestRouteSelector,
+	},
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ManifestRouteSelector {
+	pub when_url_contains: String,
+	pub when_matched: String,
+	pub otherwise: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -124,12 +151,19 @@ pub(crate) struct ManifestDigestSlice {
 }
 
 pub(crate) fn active_manifest() -> ClientManifest {
+	let bundled = bundled_manifest();
 	if let Some(manifest) = fetch_remote_manifest() {
-		source_log!("[toonlivre] active_manifest source=remote");
-		return manifest;
+		if manifest.request.signature_strategy.is_some()
+			|| bundled.request.signature_strategy.is_none()
+		{
+			source_log!("[toonlivre] active_manifest source=remote");
+			return manifest;
+		}
+		source_log!("[toonlivre] active_manifest source=local_fallback_stale_remote");
+		return bundled;
 	}
 	source_log!("[toonlivre] active_manifest source=local_fallback");
-	bundled_manifest()
+	bundled
 }
 
 pub(crate) fn bundled_manifest() -> ClientManifest {
@@ -144,7 +178,10 @@ pub(crate) fn current_decryption_passphrase() -> String {
 	current_decryption_passphrase_for_manifest(&bundled_manifest())
 }
 
-pub(crate) fn signature_value_for_url<'a>(manifest: &'a ClientManifest, url: &str) -> &'a str {
+pub(crate) fn signature_value_for_url(manifest: &ClientManifest, url: &str) -> String {
+	if let Some(strategy) = manifest.request.signature_strategy.as_ref() {
+		return dynamic_signature_value(strategy, url);
+	}
 	for rule in manifest.request.signature_rules.iter() {
 		if rule.default {
 			continue;
@@ -155,7 +192,7 @@ pub(crate) fn signature_value_for_url<'a>(manifest: &'a ClientManifest, url: &st
 			.map(|matcher| !matcher.url_contains.is_empty() && url.contains(&matcher.url_contains))
 			.unwrap_or(false)
 		{
-			return rule.value.as_str();
+			return rule.value.clone();
 		}
 	}
 	manifest
@@ -163,8 +200,8 @@ pub(crate) fn signature_value_for_url<'a>(manifest: &'a ClientManifest, url: &st
 		.signature_rules
 		.iter()
 		.find(|rule| rule.default)
-		.map(|rule| rule.value.as_str())
-		.unwrap_or(FALLBACK_SIGNATURE_DEFAULT)
+		.map(|rule| rule.value.clone())
+		.unwrap_or_else(|| String::from(FALLBACK_SIGNATURE_DEFAULT))
 }
 
 pub(crate) fn generate_session_cookie_value(manifest: &ClientManifest) -> String {
@@ -244,7 +281,8 @@ fn validate_manifest(manifest: ClientManifest) -> Option<ClientManifest> {
 		|| manifest.request.accept_language.trim().is_empty()
 		|| manifest.request.signature_header.trim().is_empty()
 		|| manifest.request.verify_header.trim().is_empty()
-		|| manifest.request.signature_rules.is_empty()
+		|| (manifest.request.signature_rules.is_empty()
+			&& manifest.request.signature_strategy.is_none())
 		|| manifest.request.session_cookie.name.trim().is_empty()
 		|| manifest.request.session_cookie.mirrors_into.is_empty()
 		|| manifest.decrypt.data_key_header.trim().is_empty()
@@ -252,6 +290,24 @@ fn validate_manifest(manifest: ClientManifest) -> Option<ClientManifest> {
 		|| manifest.decrypt.algorithm != "cryptojs-rabbit"
 	{
 		return None;
+	}
+	if let Some(strategy) = manifest.request.signature_strategy.as_ref() {
+		match strategy {
+			ManifestSignatureStrategy::TimeSha256Base64 {
+				timestamp_divisor,
+				salt,
+				route_selector,
+			} => {
+				if *timestamp_divisor <= 0
+					|| salt.trim().is_empty()
+					|| route_selector.when_url_contains.trim().is_empty()
+					|| route_selector.when_matched.trim().is_empty()
+					|| route_selector.otherwise.trim().is_empty()
+				{
+					return None;
+				}
+			}
+		}
 	}
 	match &manifest.request.session_cookie.generator {
 		ManifestSessionCookieGenerator::RandomBase36Concat { segments } => {
@@ -306,6 +362,15 @@ fn default_manifest() -> ClientManifest {
 					when: None,
 				},
 			],
+			signature_strategy: Some(ManifestSignatureStrategy::TimeSha256Base64 {
+				timestamp_divisor: 30_000,
+				salt: String::from(FALLBACK_DYNAMIC_SIGNATURE_SALT),
+				route_selector: ManifestRouteSelector {
+					when_url_contains: String::from("/chapters"),
+					when_matched: String::from("chapters"),
+					otherwise: String::from("other"),
+				},
+			}),
 			verify_header: String::from(FALLBACK_VERIFY_HEADER),
 			include_credentials: true,
 			session_cookie: ManifestSessionCookie {
@@ -341,6 +406,33 @@ fn default_manifest() -> ClientManifest {
 			},
 		},
 	}
+}
+
+fn dynamic_signature_value(strategy: &ManifestSignatureStrategy, url: &str) -> String {
+	match strategy {
+		ManifestSignatureStrategy::TimeSha256Base64 {
+			timestamp_divisor,
+			salt,
+			route_selector,
+		} => {
+			let timestamp = current_date()
+				.saturating_mul(1_000)
+				.div_euclid(*timestamp_divisor);
+			let route_kind = if url.contains(&route_selector.when_url_contains) {
+				route_selector.when_matched.as_str()
+			} else {
+				route_selector.otherwise.as_str()
+			};
+			let payload = format!("{timestamp}:{route_kind}:{salt}");
+			let digest = sha256_hex(payload.as_bytes());
+			STANDARD.encode(format!("{timestamp}:{digest}").as_bytes())
+		}
+	}
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+	let digest = <Sha256 as sha2::Digest>::digest(bytes);
+	hex_string(digest.as_slice())
 }
 
 fn pseudo_random_seed(manifest: &ClientManifest) -> String {
