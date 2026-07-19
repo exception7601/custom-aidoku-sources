@@ -80,7 +80,11 @@ jobs:
         run: |
           echo "WireGuard status:"
           sudo wg show
-
+          echo "Routes:"
+          ip route
+          echo "Public IP:"
+          curl --fail --silent --show-error https://ifconfig.me
+          echo
       - name: Refresh manifest when needed
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: ./scripts/refresh-manifest.sh --no-commit
