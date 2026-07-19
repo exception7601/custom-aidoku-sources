@@ -24,8 +24,6 @@ MANIFEST_PATH="$REPO_ROOT/$MANIFEST_RELATIVE_PATH"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/$SOURCE_FALLBACK_RELATIVE_PATH"
 EXTRATOR_DIR="$REPO_ROOT/extrator"
 BUNDLES_DIR="$EXTRATOR_DIR/bundles"
-NODE_BIN="${NODE_BIN:-$(dirname "$(command -v npm)")/node}"
-DIST_CLI_PATH="$EXTRATOR_DIR/dist/cli.js"
 FORCE_REFRESH=0
 AUTO_COMMIT=1
 TEMP_PROBE_PATH="$(mktemp)"
@@ -64,7 +62,7 @@ commit_bundle_snapshot_changes() {
 }
 
 run_extrator() {
-  env -C "$EXTRATOR_DIR" "$NODE_BIN" dist/cli.js "$@"
+  env -C "$EXTRATOR_DIR" npm exec -- tsx src/cli.ts "$@"
 }
 
 while (($#)); do
@@ -96,17 +94,6 @@ while (($#)); do
       ;;
   esac
 done
-
-if [[ ! -f "$DIST_CLI_PATH" ]]; then
-  echo "[manifest] installing extractor dependencies"
-  env -C "$EXTRATOR_DIR" npm ci
-  env -C "$EXTRATOR_DIR" npm run build
-fi
-
-if [[ ! -f "$DIST_CLI_PATH" ]]; then
-  echo "[manifest] unable to locate built extractor CLI after dependency install" >&2
-  exit 1
-fi
 
 if [[ ! -f "$MANIFEST_PATH" ]]; then
   echo "[manifest] no saved manifest found; generating a new one"
