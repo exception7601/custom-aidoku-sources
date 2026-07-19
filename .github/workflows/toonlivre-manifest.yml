@@ -47,43 +47,39 @@ jobs:
       - name: Install extractor dependencies
         run: env -C extrator npm ci
 
-      - name: Install and Setup WireGuard
-        env:
-          WG_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
-          WG_PUBLIC_KEY: ${{ secrets.WIREGUARD_PUBLIC_KEY }}
-          WG_ADDRESS: ${{ vars.WIREGUARD_ADDRESS }}
-          WG_LISTEN_PORT: ${{ vars.WIREGUARD_LISTEN_PORT }}
-          WG_ALLOWED_IPS: ${{ vars.WIREGUARD_ALLOWED_IPS }}
-          WG_ENDPOINT: ${{ vars.WIREGUARD_ENDPOINT }}
+      - name: 
+        run: sudo apt-get update && sudo apt-get install -y wireguard
+
+      - name: Write private key
+        run: echo "${{ secrets.WIREGUARD_PRIVATE_KEY }}" > privatekey
+
+      - name: Create interface
+        run: sudo ip link add dev wg0 type wireguard
+
+      - name: Add address
+        run: sudo ip address add dev wg0 ${{ vars.WIREGUARD_ADDRESS }} 
+
+      - name: Configure WireGuard
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq wireguard-tools
+          sudo wg set wg0 \
+            listen-port ${{ vars.WIREGUARD_LISTEN_PORT }} \
+            private-key privatekey \
+            peer "${{ secrets.WIREGUARD_PUBLIC_KEY }}" \
+            allowed-ips "${{ vars.WIREGUARD_ALLOWED_IPS }}" \
+            endpoint "${{ vars.WIREGUARD_ENDPOINT }}"
 
-          sudo install -d -m 700 /etc/wireguard
+      - name: Bring interface up
+        run: sudo ip link set up dev wg0
+      
+      - name: Route traffic through WireGuard
+        run: |
+          sudo ip route add 0.0.0.0/1 dev wg0
 
-          sudo tee /etc/wireguard/wg0.conf >/dev/null <<EOF
-          [Interface]
-          PrivateKey = ${WG_PRIVATE_KEY}
-          Address = ${WG_ADDRESS}
-          ListenPort = ${WG_LISTEN_PORT}
-          MTU = 1280
-
-          [Peer]
-          PublicKey = ${WG_PUBLIC_KEY}
-          AllowedIPs = ${WG_ALLOWED_IPS}
-          Endpoint = ${WG_ENDPOINT}
-          PersistentKeepalive = 25
-          EOF
-
-          sudo chmod 600 /etc/wireguard/wg0.conf
-
-          sudo wg-quick up wg0
-
-          sudo resolvectl dns wg0 1.1.1.1 1.0.0.1
+      - name: Configure DNS
+        run: |
+          sudo resolvectl dns wg0 1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001
           sudo resolvectl domain wg0 '~.'
-
-          sudo wg show
-
+          
       - name: Refresh manifest when needed
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.force != 'true'
         run: ./scripts/refresh-manifest.sh
@@ -91,12 +87,6 @@ jobs:
       - name: Force refresh manifest when requested
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true'
         run: ./scripts/refresh-manifest.sh --force
-
-      - name: Clean up WireGuard
-        if: always()
-        run: |
-          sudo wg-quick down wg0 || true
-          sudo rm -f /etc/wireguard/wg0.conf
           
       - name: Push committed changes
         run: git push
