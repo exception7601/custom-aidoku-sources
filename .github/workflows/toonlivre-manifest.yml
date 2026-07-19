@@ -73,7 +73,7 @@ jobs:
       
       - name: Route traffic through WireGuard
         run: |
-          sudo ip route add 0.0.0.0/1 dev wg0
+          sudo ip route add 0.0.0.0/0 dev wg0
 
       - name: Configure DNS
         run: |
