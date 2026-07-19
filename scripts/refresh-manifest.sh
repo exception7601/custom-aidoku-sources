@@ -43,6 +43,7 @@ commit_manifest_changes() {
   printf '%s\n' "$manifest_changes"
   git -C "$REPO_ROOT" add manifest "$SOURCE_FALLBACK_RELATIVE_PATH"
   git -C "$REPO_ROOT" commit -m "Refresh ToonLivre manifest"
+  echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
   echo "[manifest] manifest commit created"
 }
 
