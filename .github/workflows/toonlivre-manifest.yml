@@ -9,11 +9,10 @@ on:
         default: false
         type: boolean
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "0 * * * *"
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
   group: toonlivre-manifest-refresh
@@ -91,11 +90,22 @@ jobs:
         if: always()
         run: git push
 
-      - name: Release
+      - name: Prepare `public/` manifest artifact
         if: steps.manifest.outputs.manifest_changed == 'true' || steps.manifest-force.outputs.manifest_changed == 'true'
-        run: gh workflow run release.yml --ref main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p public
+          cp extrator/manifest/manifest.json public/manifest.json
+
+      - name: Publish current manifest to `gh-pages`
+        if: steps.manifest.outputs.manifest_changed == 'true' || steps.manifest-force.outputs.manifest_changed == 'true'
+        uses: JamesIves/github-pages-deploy-action@v4.7.3
+        with:
+          branch: gh-pages
+          folder: public
+          clean: false
+          commit-message: Update ToonLivre remote manifest
+          git-config-name: GitHub Actions
+          git-config-email: github-actions[bot]@users.noreply.github.com
 
       - name: Upload bundle snapshots artifact
         uses: actions/upload-artifact@v4

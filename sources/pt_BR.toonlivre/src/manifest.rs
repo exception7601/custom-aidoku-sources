@@ -17,6 +17,9 @@ use crate::{ACCEPT_LANGUAGE, BASE_URL};
 const BUNDLED_MANIFEST_JSON: &str = include_str!("../res/manifest.json");
 const REMOTE_MANIFEST_URL: &str =
 	"https://exception7601.github.io/custom-aidoku-sources/manifest.json";
+const REMOTE_MANIFEST_CACHE_KEY: &str = "toonlivre.manifest.remote-cache";
+const REMOTE_MANIFEST_FETCHED_AT_KEY: &str = "toonlivre.manifest.remote-cache-fetched-at";
+const REMOTE_MANIFEST_CACHE_TTL_SECONDS: i64 = 3_600;
 const MANIFEST_REQUEST_COUNTER_KEY: &str = "toonlivre.manifest.request-counter";
 const MANIFEST_SEED_TOKEN_KEY: &str = "toonlivre.manifest.seed-token";
 const MANIFEST_SOURCE_ID: &str = "pt_BR.toonlivre";
@@ -174,28 +177,103 @@ pub(crate) struct ManifestDigestSlice {
 	pub end: usize,
 }
 
+#[derive(Debug, Clone)]
+struct CachedRemoteManifest {
+	manifest: ClientManifest,
+	fetched_at: i64,
+}
+
+#[derive(Debug, Clone)]
+struct FetchedRemoteManifest {
+	manifest: ClientManifest,
+	raw_json: String,
+	fetched_at: i64,
+}
+
 pub(crate) fn active_manifest() -> ClientManifest {
 	let bundled = bundled_manifest();
-	if let Some(remote) = fetch_remote_manifest() {
-		let remote_score = manifest_capability_score(&remote);
-		let bundled_score = manifest_capability_score(&bundled);
+	let bundled_score = manifest_capability_score(&bundled);
+	let now = current_date();
+	let cached_remote = cached_remote_manifest();
 
-		if remote_score >= bundled_score {
+	if let Some(cached) = cached_remote.as_ref() {
+		let remote_score = manifest_capability_score(&cached.manifest);
+		let cache_age_seconds = now.saturating_sub(cached.fetched_at);
+
+		if remote_manifest_cache_is_fresh(cached.fetched_at, now) {
+			if remote_score >= bundled_score {
+				source_log!(
+					"[toonlivre] active_manifest source=cached_remote remote_score={} bundled_score={} cache_age_seconds={}",
+					remote_score,
+					bundled_score,
+					cache_age_seconds
+				);
+				return cached.manifest.clone();
+			}
+
 			source_log!(
-				"[toonlivre] active_manifest source=remote remote_score={} bundled_score={}",
+				"[toonlivre] active_manifest source=local_fallback_cached_remote remote_score={} bundled_score={} cache_age_seconds={}",
 				remote_score,
-				bundled_score
+				bundled_score,
+				cache_age_seconds
 			);
-			return remote;
+			return bundled;
 		}
 
 		source_log!(
-			"[toonlivre] active_manifest source=local_fallback_stale_remote remote_score={} bundled_score={}",
+			"[toonlivre] active_manifest cached_remote_stale remote_score={} bundled_score={} cache_age_seconds={}",
 			remote_score,
-			bundled_score
+			bundled_score,
+			cache_age_seconds
+		);
+	}
+
+	if let Some(remote) = fetch_remote_manifest() {
+		let remote_score = manifest_capability_score(&remote.manifest);
+		cache_remote_manifest(&remote);
+
+		if remote_score >= bundled_score {
+			source_log!(
+				"[toonlivre] active_manifest source=remote remote_score={} bundled_score={} cache_ttl_seconds={}",
+				remote_score,
+				bundled_score,
+				REMOTE_MANIFEST_CACHE_TTL_SECONDS
+			);
+			return remote.manifest;
+		}
+
+		source_log!(
+			"[toonlivre] active_manifest source=local_fallback_stale_remote remote_score={} bundled_score={} cache_ttl_seconds={}",
+			remote_score,
+			bundled_score,
+			REMOTE_MANIFEST_CACHE_TTL_SECONDS
 		);
 		return bundled;
 	}
+
+	if let Some(cached) = cached_remote {
+		let remote_score = manifest_capability_score(&cached.manifest);
+		let cache_age_seconds = now.saturating_sub(cached.fetched_at);
+
+		if remote_score >= bundled_score {
+			source_log!(
+				"[toonlivre] active_manifest source=stale_cached_remote remote_score={} bundled_score={} cache_age_seconds={}",
+				remote_score,
+				bundled_score,
+				cache_age_seconds
+			);
+			return cached.manifest;
+		}
+
+		source_log!(
+			"[toonlivre] active_manifest source=local_fallback_stale_cached_remote remote_score={} bundled_score={} cache_age_seconds={}",
+			remote_score,
+			bundled_score,
+			cache_age_seconds
+		);
+		return bundled;
+	}
+
 	source_log!("[toonlivre] active_manifest source=local_fallback");
 	bundled
 }
@@ -302,7 +380,7 @@ pub(crate) fn current_decryption_passphrase_for_manifest(manifest: &ClientManife
 	}
 }
 
-fn fetch_remote_manifest() -> Option<ClientManifest> {
+fn fetch_remote_manifest() -> Option<FetchedRemoteManifest> {
 	source_log!("[toonlivre] fetch_remote_manifest url={REMOTE_MANIFEST_URL}");
 	let response = Request::get(REMOTE_MANIFEST_URL)
 		.ok()?
@@ -321,7 +399,45 @@ fn fetch_remote_manifest() -> Option<ClientManifest> {
 		"[toonlivre] fetch_remote_manifest body={}",
 		manifest_log_snippet(&body)
 	);
-	parse_manifest(&body)
+	let manifest = parse_manifest(&body)?;
+
+	Some(FetchedRemoteManifest {
+		manifest,
+		raw_json: body,
+		fetched_at: current_date(),
+	})
+}
+
+fn cached_remote_manifest() -> Option<CachedRemoteManifest> {
+	let manifest_json = defaults_get::<String>(REMOTE_MANIFEST_CACHE_KEY)?;
+	if manifest_json.trim().is_empty() {
+		return None;
+	}
+
+	let fetched_at = defaults_get::<String>(REMOTE_MANIFEST_FETCHED_AT_KEY)?
+		.parse::<i64>()
+		.ok()?;
+	let manifest = parse_manifest(&manifest_json)?;
+
+	Some(CachedRemoteManifest {
+		manifest,
+		fetched_at,
+	})
+}
+
+fn cache_remote_manifest(remote: &FetchedRemoteManifest) {
+	defaults_set(
+		REMOTE_MANIFEST_CACHE_KEY,
+		DefaultValue::String(remote.raw_json.clone()),
+	);
+	defaults_set(
+		REMOTE_MANIFEST_FETCHED_AT_KEY,
+		DefaultValue::String(format!("{}", remote.fetched_at)),
+	);
+}
+
+fn remote_manifest_cache_is_fresh(fetched_at: i64, now: i64) -> bool {
+	now.saturating_sub(fetched_at) <= REMOTE_MANIFEST_CACHE_TTL_SECONDS
 }
 
 pub(crate) fn parse_manifest(manifest_json: &str) -> Option<ClientManifest> {
@@ -806,4 +922,16 @@ fn civil_from_days(days_since_unix_epoch: i64) -> (i32, u32, u32) {
 	let month = mp + if mp < 10 { 3 } else { -9 };
 	let year = y + if month <= 2 { 1 } else { 0 };
 	(year as i32, month as u32, day as u32)
+}
+
+#[cfg(test)]
+mod manifest_tests {
+	use super::*;
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn remote_manifest_cache_window_is_one_hour() {
+		assert!(remote_manifest_cache_is_fresh(1_000, 4_600));
+		assert!(!remote_manifest_cache_is_fresh(1_000, 4_601));
+	}
 }
