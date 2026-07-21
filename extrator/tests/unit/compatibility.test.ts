@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCompatibilityFailureMessage,
-  checkArchivedManifestCompatibility,
+  checkBaselineManifestCompatibility,
   checkBundleCompatibility,
 } from '../../src/compatibility.js';
 
@@ -14,7 +14,7 @@ const bundlesDir = resolve(import.meta.dirname, '..', '..', 'bundles');
 
 describe('baseline manifest compatibility', () => {
   it('keeps every baseline bundle compatible with the current recognizers', async () => {
-    const results = await checkArchivedManifestCompatibility({ manifestDir, bundlesDir });
+    const results = await checkBaselineManifestCompatibility({ manifestDir, bundlesDir });
     const failures = results.filter((result) => !result.ok);
 
     expect(results.length).toBeGreaterThan(0);

@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import { DEFAULT_CANARY_CHAPTER_URL, DEFAULT_SITE_URL, DEFAULT_SOURCE_ID } from './constants.js';
 import {
   buildCompatibilityFailureMessage,
-  checkArchivedManifestCompatibility,
+  checkBaselineManifestCompatibility,
   checkBundleCompatibility,
 } from './compatibility.js';
 import { downloadBundle } from './download-bundle.js';
@@ -153,7 +153,7 @@ export async function runCli(argv: string[]): Promise<void> {
         return;
       }
 
-      const results = await checkArchivedManifestCompatibility({
+      const results = await checkBaselineManifestCompatibility({
         manifestDir: options.manifestDir,
         bundlesDir: options.bundlesDir,
         sourceId: options.sourceId,

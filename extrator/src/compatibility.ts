@@ -6,7 +6,7 @@ import { extractManifest } from './extract.js';
 import { type ExtractedManifest, parseManifest } from './manifest.js';
 import { sha256 } from './http.js';
 
-const DEFAULT_ARCHIVED_MANIFESTS_DIR = resolve('manifest/baselines');
+const DEFAULT_BASELINE_MANIFESTS_DIR = resolve('manifest/baselines');
 const DEFAULT_BUNDLES_DIR = resolve('bundles');
 
 interface BundleSnapshotRecord {
@@ -34,14 +34,14 @@ export interface BundleCompatibilityResult {
   expected: CompatibilityComparableManifest;
 }
 
-export interface ArchivedCompatibilityCheckOptions {
+export interface BaselineCompatibilityCheckOptions {
   manifestDir?: string;
   bundlesDir?: string;
   sourceId?: string;
   siteUrl?: string;
 }
 
-export interface ArchivedCompatibilityResult {
+export interface BaselineCompatibilityResult {
   manifestPath: string;
   bundleFile: string;
   bundleHash: string;
@@ -81,7 +81,7 @@ export async function checkBundleCompatibility(
   const bundleHash = sha256(bundleText);
   const expectedManifest = options.manifestPath
     ? await loadManifest(options.manifestPath)
-    : await loadArchivedManifestForBundle(bundleFile, options.manifestDir);
+    : await loadBaselineManifestForBundle(bundleFile, options.manifestDir);
   const actualManifest = await extractManifest({
     sourceId: options.sourceId ?? DEFAULT_SOURCE_ID,
     siteUrl: options.siteUrl ?? DEFAULT_SITE_URL,
@@ -102,17 +102,17 @@ export async function checkBundleCompatibility(
   };
 }
 
-export async function checkArchivedManifestCompatibility(
-  options: ArchivedCompatibilityCheckOptions = {}
-): Promise<ArchivedCompatibilityResult[]> {
-  const manifestDir = resolve(options.manifestDir ?? DEFAULT_ARCHIVED_MANIFESTS_DIR);
+export async function checkBaselineManifestCompatibility(
+  options: BaselineCompatibilityCheckOptions = {}
+): Promise<BaselineCompatibilityResult[]> {
+  const manifestDir = resolve(options.manifestDir ?? DEFAULT_BASELINE_MANIFESTS_DIR);
   const bundlesDir = resolve(options.bundlesDir ?? DEFAULT_BUNDLES_DIR);
   const manifestPaths = (await readdir(manifestDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => join(manifestDir, entry.name))
     .sort();
   const bundleSnapshots = await loadBundleSnapshotRecords(bundlesDir);
-  const results: ArchivedCompatibilityResult[] = [];
+  const results: BaselineCompatibilityResult[] = [];
 
   for (const manifestPath of manifestPaths) {
     const manifest = await loadManifest(manifestPath);
@@ -203,7 +203,7 @@ async function loadManifest(manifestPath: string): Promise<ExtractedManifest> {
   return parseManifest(JSON.parse(contents));
 }
 
-async function loadArchivedManifestForBundle(
+async function loadBaselineManifestForBundle(
   bundleFile: string,
   manifestDir: string | undefined
 ): Promise<ExtractedManifest> {
@@ -212,12 +212,12 @@ async function loadArchivedManifestForBundle(
 }
 
 function inferManifestPath(manifest: ExtractedManifest, manifestDir: string | undefined): string {
-  return join(resolve(manifestDir ?? DEFAULT_ARCHIVED_MANIFESTS_DIR), manifestFileNameFromManifest(manifest));
+  return join(resolve(manifestDir ?? DEFAULT_BASELINE_MANIFESTS_DIR), manifestFileNameFromManifest(manifest));
 }
 
 function inferManifestPathFromBundleFile(bundleFile: string, manifestDir: string | undefined): string {
   return join(
-    resolve(manifestDir ?? DEFAULT_ARCHIVED_MANIFESTS_DIR),
+    resolve(manifestDir ?? DEFAULT_BASELINE_MANIFESTS_DIR),
     `${bundleStem(basename(bundleFile))}.json`
   );
 }

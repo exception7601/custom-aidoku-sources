@@ -3,14 +3,15 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/extract-manifest.sh [--sync-source-fallback] [bundle-url-or-entry-url]
+Usage: ./scripts/extract-manifest.sh [--sync-source-fallback] [--bundle-file <path>] [--bundle-url-hint <url>] [bundle-url-or-entry-url]
 EOF
 }
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 INPUT_URL="https://toonlivre.net/"
+BUNDLE_FILE=""
+BUNDLE_URL_HINT=""
 MANIFEST_DIR="$REPO_ROOT/extrator/manifest"
-MANIFEST_ARCHIVE_DIR="$MANIFEST_DIR/archive"
 MANIFEST_BASELINES_DIR="$MANIFEST_DIR/baselines"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/sources/pt_BR.toonlivre/res/manifest.json"
 TEMP_MANIFEST_PATH="$(mktemp)"
@@ -23,6 +24,22 @@ while (($#)); do
       SYNC_SOURCE_FALLBACK=1
       shift
       ;;
+    --bundle-file)
+      if (($# < 2)); then
+        echo "[manifest] missing value for --bundle-file" >&2
+        exit 1
+      fi
+      BUNDLE_FILE="$2"
+      shift 2
+      ;;
+    --bundle-url-hint)
+      if (($# < 2)); then
+        echo "[manifest] missing value for --bundle-url-hint" >&2
+        exit 1
+      fi
+      BUNDLE_URL_HINT="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -34,30 +51,40 @@ while (($#)); do
   esac
 done
 
-mkdir -p "$MANIFEST_DIR" "$MANIFEST_ARCHIVE_DIR" "$MANIFEST_BASELINES_DIR"
+mkdir -p "$MANIFEST_DIR" "$MANIFEST_BASELINES_DIR"
 trap 'rm -f "$TEMP_MANIFEST_PATH"' EXIT
 
 env -C "$EXTRATOR_DIR" npm run build >/dev/null
-env -C "$EXTRATOR_DIR" \
-  node dist/cli.js extract \
-  --bundle-url "$INPUT_URL" \
-  --out "$TEMP_MANIFEST_PATH" >/dev/null
+if [[ -n "$BUNDLE_FILE" ]]; then
+  env -C "$EXTRATOR_DIR" \
+    node dist/cli.js extract \
+    --bundle-file "$BUNDLE_FILE" \
+    --out "$TEMP_MANIFEST_PATH" >/dev/null
+else
+  env -C "$EXTRATOR_DIR" \
+    node dist/cli.js extract \
+    --bundle-url "$INPUT_URL" \
+    --out "$TEMP_MANIFEST_PATH" >/dev/null
+fi
 
-jq -c . "$TEMP_MANIFEST_PATH" > "$MANIFEST_DIR/manifest.json"
-ARCHIVE_TIMESTAMP="$(jq -r '.extractedAt | sub("\\.[0-9]+Z$"; "Z") | gsub(":"; "-")' "$MANIFEST_DIR/manifest.json")"
+if [[ -n "$BUNDLE_URL_HINT" ]]; then
+  jq -c --arg bundle_url "$BUNDLE_URL_HINT" '.bundle.url = $bundle_url' "$TEMP_MANIFEST_PATH" > "$MANIFEST_DIR/manifest.json"
+else
+  jq -c . "$TEMP_MANIFEST_PATH" > "$MANIFEST_DIR/manifest.json"
+fi
+
 BUNDLE_FILE_NAME="$(jq -r '.bundle.url // empty | split("/") | last' "$MANIFEST_DIR/manifest.json")"
+if [[ -z "$BUNDLE_FILE_NAME" && -n "$BUNDLE_FILE" ]]; then
+  BUNDLE_FILE_NAME="$(basename "$BUNDLE_FILE")"
+fi
 BUNDLE_STEM="${BUNDLE_FILE_NAME%.js}"
 if [[ -z "$BUNDLE_STEM" ]]; then
   BUNDLE_STEM="bundle-$(jq -r '.bundle.hash[0:8]' "$MANIFEST_DIR/manifest.json")"
 fi
-ARCHIVE_FILE_NAME="${ARCHIVE_TIMESTAMP}__${BUNDLE_STEM}.json"
-cp "$MANIFEST_DIR/manifest.json" "$MANIFEST_ARCHIVE_DIR/$ARCHIVE_FILE_NAME"
-if [[ -n "$BUNDLE_FILE_NAME" ]]; then
-  BUNDLE_MANIFEST_NAME="${BUNDLE_STEM}.json"
-  cp "$MANIFEST_DIR/manifest.json" "$MANIFEST_BASELINES_DIR/$BUNDLE_MANIFEST_NAME"
-fi
+BUNDLE_MANIFEST_NAME="${BUNDLE_STEM}.json"
+cp "$MANIFEST_DIR/manifest.json" "$MANIFEST_BASELINES_DIR/$BUNDLE_MANIFEST_NAME"
 
-echo "[manifest] archive snapshot: $MANIFEST_ARCHIVE_DIR/$ARCHIVE_FILE_NAME"
+echo "[manifest] baseline manifest: $MANIFEST_BASELINES_DIR/$BUNDLE_MANIFEST_NAME"
 
 if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
   cp "$MANIFEST_DIR/manifest.json" "$SOURCE_FALLBACK_PATH"

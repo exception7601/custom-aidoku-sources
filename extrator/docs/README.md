@@ -5,11 +5,12 @@ The goal is to keep unstable frontend details out of `sources/pt_BR.toonlivre`.
 
 ## What it does
 
-- downloads the current bundle;
+- fetches the current bundle when extraction needs it;
 - parses the JavaScript into an AST;
 - extracts request header rules, session token rules, and decrypt rules;
 - validates the extracted runtime against a live chapter endpoint;
-- writes a manifest that the source can use.
+- writes a manifest that the source can use;
+- saves bundle snapshots only through `download-bundle` or `scripts/refresh-manifest.sh`.
 
 ## Main files
 
@@ -66,7 +67,7 @@ Probe whether the saved manifest bundle still matches the live site.
 env -C extrator node dist/cli.js probe --manifest manifest/manifest.json
 ```
 
-Extract a fresh manifest from the live site.
+Extract a fresh manifest from the live site without saving a bundle snapshot.
 
 ```sh
 env -C extrator npm run extract -- --entry-url https://toonlivre.net/
@@ -97,14 +98,14 @@ The extractor accepts:
 The workflow writes:
 
 - `extrator/manifest/manifest.json` as the latest manifest;
-- `extrator/manifest/archive/YYYY-MM-DDTHH-MM-SSZ__index-<bundle>.json` as dated archive snapshots;
 - `extrator/manifest/baselines/*.json` as per-bundle compatibility baselines;
+- `extrator/bundles/bundle_v*/` as saved bundle snapshots, written only by `download-bundle` or `scripts/refresh-manifest.sh`;
 - `sources/pt_BR.toonlivre/res/manifest.json` as the bundled fallback for the source.
 
 ## Tests
 
 - `tests/unit/` covers parsing, recognizers, runtime helpers, and bundle baseline compatibility;
-- `tests/live/` covers live extraction and a real chapter request.
+- `tests/live/` covers live extraction and a real chapter request without persisting bundle snapshots.
 
 ## Source integration
 
@@ -121,7 +122,7 @@ This keeps the source working even if the remote manifest is unavailable.
 When ToonLivre changes, use this sequence.
 
 - run `probe` to confirm whether the live bundle changed;
-- run `extract` to generate a fresh manifest;
+- run `scripts/refresh-manifest.sh` when you want to save the live bundle snapshot and refresh the baseline manifest from that saved file;
 - run `compat` to confirm the saved bundle snapshots still match their baseline manifests;
 - run `validate` against `manifest/manifest.json`;
 - sync the manifest into `sources/pt_BR.toonlivre/res/manifest.json` when you are ready to update the source fallback;
