@@ -41,6 +41,11 @@ env -C sources/pt_BR.montetaiscanlator cargo fmt
 
 For extractor usage, commands, and workflow notes, see `extrator/docs/README.md`.
 
+For script work around `extrator/`, including `package.json` scripts, never add or restore an automatic `env -C extrator npm run build` step.
+Prefer reusing existing build artifacts such as `extrator/dist/cli.js`.
+If a required artifact is missing, stop and tell the user to run `env -C extrator npm run build` manually instead of building automatically.
+In CI, build the extractor explicitly once before any script that depends on `dist/cli.js`.
+When debugging slowness in extractor-related scripts, test one command at a time instead of running the whole chain in one large benchmarking command.
 
 Package the source.
 

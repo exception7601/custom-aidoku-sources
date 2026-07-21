@@ -16,7 +16,22 @@ MANIFEST_BASELINES_DIR="$MANIFEST_DIR/baselines"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/sources/pt_BR.toonlivre/res/manifest.json"
 TEMP_MANIFEST_PATH="$(mktemp)"
 EXTRATOR_DIR="$REPO_ROOT/extrator"
+EXTRATOR_CLI="$EXTRATOR_DIR/dist/cli.js"
 SYNC_SOURCE_FALLBACK=0
+
+require_extrator_cli() {
+  if [[ -f "$EXTRATOR_CLI" ]]; then
+    return 0
+  fi
+
+  echo "[manifest] missing extrator build: $EXTRATOR_CLI" >&2
+  echo "[manifest] run manually: env -C \"$EXTRATOR_DIR\" npm run build" >&2
+  exit 1
+}
+
+run_extrator() {
+  node "$EXTRATOR_CLI" "$@"
+}
 
 while (($#)); do
   case "$1" in
@@ -54,15 +69,14 @@ done
 mkdir -p "$MANIFEST_DIR" "$MANIFEST_BASELINES_DIR"
 trap 'rm -f "$TEMP_MANIFEST_PATH"' EXIT
 
-env -C "$EXTRATOR_DIR" npm run build >/dev/null
+require_extrator_cli
+
 if [[ -n "$BUNDLE_FILE" ]]; then
-  env -C "$EXTRATOR_DIR" \
-    node dist/cli.js extract \
+  run_extrator extract \
     --bundle-file "$BUNDLE_FILE" \
     --out "$TEMP_MANIFEST_PATH" >/dev/null
 else
-  env -C "$EXTRATOR_DIR" \
-    node dist/cli.js extract \
+  run_extrator extract \
     --bundle-url "$INPUT_URL" \
     --out "$TEMP_MANIFEST_PATH" >/dev/null
 fi

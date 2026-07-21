@@ -48,6 +48,9 @@ jobs:
       - name: Install extractor dependencies
         run: env -C extrator npm ci
 
+      - name: Build extractor CLI
+        run: env -C extrator npm run build
+
       - name: Configure WireGuard
         env:
           WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}

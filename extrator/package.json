@@ -17,7 +17,7 @@
     "lint": "eslint .",
     "test": "vitest run tests/unit",
     "test:unit": "vitest run tests/unit",
-    "test:compat": "npm run build && node dist/cli.js compat",
+    "test:compat": "node scripts/run-built-cli.mjs compat",
     "test:live": "RUN_LIVE_TESTS=1 vitest run tests/live",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

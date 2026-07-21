@@ -30,6 +30,12 @@ Install dependencies.
 env -C extrator npm install
 ```
 
+Build the compiled CLI when `dist/cli.js` is missing or stale.
+
+```sh
+env -C extrator npm run build
+```
+
 Run the unit tests.
 
 ```sh
@@ -37,6 +43,8 @@ env -C extrator npm test
 ```
 
 Run the bundle baseline compatibility checks.
+This reuses the existing compiled CLI and does not build automatically.
+If `dist/cli.js` is missing, run `env -C extrator npm run build` manually first.
 
 ```sh
 env -C extrator npm run test:compat

@@ -25,6 +25,7 @@ SOURCE_FALLBACK_RELATIVE_PATH="sources/pt_BR.toonlivre/res/manifest.json"
 MANIFEST_PATH="$REPO_ROOT/$MANIFEST_RELATIVE_PATH"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/$SOURCE_FALLBACK_RELATIVE_PATH"
 EXTRATOR_DIR="$REPO_ROOT/extrator"
+EXTRATOR_CLI="$EXTRATOR_DIR/dist/cli.js"
 BUNDLES_DIR="$EXTRATOR_DIR/bundles"
 FORCE_REFRESH=0
 AUTO_COMMIT=1
@@ -66,8 +67,18 @@ commit_bundle_snapshot_changes() {
   echo "[manifest] bundle snapshot commit created"
 }
 
+require_extrator_cli() {
+  if [[ -f "$EXTRATOR_CLI" ]]; then
+    return 0
+  fi
+
+  echo "[manifest] missing extrator build: $EXTRATOR_CLI" >&2
+  echo "[manifest] run manually: env -C \"$EXTRATOR_DIR\" npm run build" >&2
+  exit 1
+}
+
 run_extrator() {
-  env -C "$EXTRATOR_DIR" node dist/cli.js "$@"
+  node "$EXTRATOR_CLI" "$@"
 }
 
 while (($#)); do
@@ -104,7 +115,7 @@ while (($#)); do
   esac
 done
 
-env -C "$EXTRATOR_DIR" npm run build >/dev/null
+require_extrator_cli
 
 if [[ ! -f "$MANIFEST_PATH" ]]; then
   echo "[manifest] no saved manifest found; generating a new one"
