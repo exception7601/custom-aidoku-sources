@@ -40,6 +40,8 @@ env -C sources/pt_BR.montetaiscanlator cargo fmt
 ## `extrator/`
 
 For extractor usage, commands, and workflow notes, see `extrator/docs/README.md`.
+Use `env -C extrator npm run knip` for dead code checks in `extrator/src`.
+`knip` covers TypeScript code and test entry points, but fixture files under `extrator/tests/fixtures/` are still a separate manual audit.
 
 For script work around `extrator/`, including `package.json` scripts, never add or restore an automatic `env -C extrator npm run build` step.
 Prefer reusing existing build artifacts such as `extrator/dist/cli.js`.

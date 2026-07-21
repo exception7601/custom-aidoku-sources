@@ -142,7 +142,7 @@ export async function checkBaselineManifestCompatibility(
   return results;
 }
 
-export function normalizeManifestForCompatibility(
+function normalizeManifestForCompatibility(
   manifest: ExtractedManifest,
   fallbackBundleFileName?: string
 ): CompatibilityComparableManifest {
@@ -170,7 +170,7 @@ export function normalizeManifestForCompatibility(
   };
 }
 
-export function manifestsMatch(
+function manifestsMatch(
   actual: CompatibilityComparableManifest,
   expected: CompatibilityComparableManifest
 ): boolean {

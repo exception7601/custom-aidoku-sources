@@ -54,13 +54,13 @@ export async function buildRequestContext(
   };
 }
 
-export function generateSessionCookieValue(manifest: ExtractedManifest): string {
+function generateSessionCookieValue(manifest: ExtractedManifest): string {
   return manifest.request.sessionCookie.generator.segments
     .map((segment) => Math.random().toString(segment.radix).substring(segment.start, segment.end))
     .join('');
 }
 
-export async function buildSignatureValue(
+async function buildSignatureValue(
   manifest: ExtractedManifest,
   url: string,
   sessionValue: string
@@ -72,7 +72,7 @@ export async function buildSignatureValue(
   return selectSignatureValue(manifest.request.signatureRules, url);
 }
 
-export function selectSignatureValue(rules: SignatureRule[], url: string): string {
+function selectSignatureValue(rules: SignatureRule[], url: string): string {
   for (const rule of rules) {
     if (rule.default === true) {
       continue;
@@ -135,7 +135,7 @@ export function decryptPayload(
   return decrypted;
 }
 
-export function selectEncryptedField(
+function selectEncryptedField(
   parsed: Record<string, unknown>,
   dataKey?: string
 ): string | undefined {

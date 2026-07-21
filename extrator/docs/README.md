@@ -63,6 +63,14 @@ env -C extrator npm run lint
 env -C extrator npm run typecheck
 ```
 
+Run dead code checks for the extractor TypeScript code.
+This uses `knip` from `mise` and treats `tests/**/*.ts` as entry points.
+Fixture files under `tests/fixtures/` are loaded by helper name and should still be audited separately.
+
+```sh
+env -C extrator npm run knip
+```
+
 Validate the current extractor manifest against the live chapter canary.
 
 ```sh

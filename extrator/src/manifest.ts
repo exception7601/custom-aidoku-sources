@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-export const signatureRuleSchema = z
+const signatureRuleSchema = z
   .object({
     value: z.string().min(1),
     default: z.boolean().optional(),
@@ -32,12 +32,12 @@ const seedJwtSignatureStrategySchema = z.object({
   tokenField: z.string().min(1),
 });
 
-export const dynamicSignatureStrategySchema = z.discriminatedUnion('kind', [
+const dynamicSignatureStrategySchema = z.discriminatedUnion('kind', [
   timeSha256Base64SignatureStrategySchema,
   seedJwtSignatureStrategySchema,
 ]);
 
-export const sessionCookieGeneratorSchema = z.object({
+const sessionCookieGeneratorSchema = z.object({
   kind: z.literal('random-base36-concat'),
   segments: z
     .array(
@@ -76,12 +76,12 @@ const utcSha256DerivedPassphraseSchema = z.object({
   }),
 });
 
-export const passphraseSchema = z.discriminatedUnion('kind', [
+const passphraseSchema = z.discriminatedUnion('kind', [
   utcMd5DerivedPassphraseSchema,
   utcSha256DerivedPassphraseSchema,
 ]);
 
-export const manifestSchema = z.object({
+const manifestSchema = z.object({
   schemaVersion: z.literal(1),
   sourceId: z.string().min(1),
   siteUrl: z.string().url(),

@@ -1,6 +1,7 @@
 [tools]
 "cargo:https://github.com/Aidoku/aidoku-rs" = { version = "latest", crate = "aidoku-cli" }
 "cargo:https://github.com/Aidoku/aidoku-rs/" = { version = "latest", crate = "aidoku-test-runner" }
+"npm:knip" = "6.27.0"
 sccache = "0.16.0"
 
 [settings]

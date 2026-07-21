@@ -1,0 +1,11 @@
+{
+  "entry": [
+    "tests/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.ts"
+  ],
+  "ignoreBinaries": [
+    "knip"
+  ]
+}

@@ -1,7 +1,7 @@
 import type { NodePath, Scope } from '@babel/traverse';
 import * as t from '@babel/types';
 
-export type StaticPrimitive = string | number | boolean | null;
+type StaticPrimitive = string | number | boolean | null;
 export type StaticValue = StaticPrimitive | StaticValue[] | StaticFunction;
 
 type AnyNodePath = NodePath<t.Node | null | undefined>;
@@ -27,10 +27,6 @@ export function flattenPlusExpression(node: t.Node): t.Node[] {
   }
 
   return [node];
-}
-
-export function getIdentifierName(node: t.Node | null | undefined): string | undefined {
-  return t.isIdentifier(node) ? node.name : undefined;
 }
 
 export function evaluateStatic(
