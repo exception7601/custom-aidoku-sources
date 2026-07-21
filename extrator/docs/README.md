@@ -35,7 +35,7 @@ Run the unit tests.
 env -C extrator npm test
 ```
 
-Run the archived bundle compatibility checks.
+Run the bundle baseline compatibility checks.
 
 ```sh
 env -C extrator npm run test:compat
@@ -78,7 +78,7 @@ Download the current live bundle snapshot.
 env -C extrator node dist/cli.js download-bundle --entry-url https://toonlivre.net/ --out-dir bundles
 ```
 
-Compare one saved bundle file against its archived manifest.
+Compare one saved bundle file against its baseline manifest.
 
 ```sh
 env -C extrator node dist/cli.js compat --bundle-file bundles/bundle_v1784634648_index-CMe0Aw9p_js/index-CMe0Aw9p.js
@@ -97,13 +97,13 @@ The extractor accepts:
 The workflow writes:
 
 - `extrator/manifest/manifest.json` as the latest manifest;
-- `extrator/manifest/history/manifest_vYYYYMMDD-HHMM.json` as dated history;
-- `extrator/manifest/bundles/*.json` as per-bundle compatibility baselines;
+- `extrator/manifest/archive/YYYY-MM-DDTHH-MM-SSZ__index-<bundle>.json` as dated archive snapshots;
+- `extrator/manifest/baselines/*.json` as per-bundle compatibility baselines;
 - `sources/pt_BR.toonlivre/res/manifest.json` as the bundled fallback for the source.
 
 ## Tests
 
-- `tests/unit/` covers parsing, recognizers, runtime helpers, and archived bundle compatibility;
+- `tests/unit/` covers parsing, recognizers, runtime helpers, and bundle baseline compatibility;
 - `tests/live/` covers live extraction and a real chapter request.
 
 ## Source integration
@@ -122,7 +122,7 @@ When ToonLivre changes, use this sequence.
 
 - run `probe` to confirm whether the live bundle changed;
 - run `extract` to generate a fresh manifest;
-- run `compat` to confirm the saved bundle snapshots still match their archived manifests;
+- run `compat` to confirm the saved bundle snapshots still match their baseline manifests;
 - run `validate` against `manifest/manifest.json`;
 - sync the manifest into `sources/pt_BR.toonlivre/res/manifest.json` when you are ready to update the source fallback;
 - run `cargo test` in `sources/pt_BR.toonlivre`;

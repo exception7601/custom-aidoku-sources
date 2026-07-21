@@ -108,10 +108,10 @@ export async function runCli(argv: string[]): Promise<void> {
 
   program
     .command('compat')
-    .description('Compare saved bundle snapshots against archived manifests.')
-    .option('--bundle-file <path>', 'Check one bundle file instead of the whole archive set')
+    .description('Compare saved bundle snapshots against baseline manifests.')
+    .option('--bundle-file <path>', 'Check one bundle file instead of the whole baseline set')
     .option('--manifest <path>', 'Expected manifest for `--bundle-file`')
-    .option('--manifest-dir <path>', 'Directory containing archived per-bundle manifests')
+    .option('--manifest-dir <path>', 'Directory containing per-bundle baseline manifests')
     .option('--bundles-dir <path>', 'Directory containing saved bundle snapshots')
     .option('--site-url <siteUrl>', 'Base site URL', DEFAULT_SITE_URL)
     .option('--source-id <sourceId>', 'Manifest source identifier', DEFAULT_SOURCE_ID)

@@ -6,7 +6,7 @@ import { extractManifest } from './extract.js';
 import { type ExtractedManifest, parseManifest } from './manifest.js';
 import { sha256 } from './http.js';
 
-const DEFAULT_ARCHIVED_MANIFESTS_DIR = resolve('manifest/bundles');
+const DEFAULT_ARCHIVED_MANIFESTS_DIR = resolve('manifest/baselines');
 const DEFAULT_BUNDLES_DIR = resolve('bundles');
 
 interface BundleSnapshotRecord {

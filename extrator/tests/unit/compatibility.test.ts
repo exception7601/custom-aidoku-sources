@@ -8,12 +8,12 @@ import {
   checkBundleCompatibility,
 } from '../../src/compatibility.js';
 
-const archiveRoot = resolve(import.meta.dirname, '..', '..', 'manifest');
-const manifestDir = resolve(archiveRoot, 'bundles');
+const manifestRoot = resolve(import.meta.dirname, '..', '..', 'manifest');
+const manifestDir = resolve(manifestRoot, 'baselines');
 const bundlesDir = resolve(import.meta.dirname, '..', '..', 'bundles');
 
-describe('archived manifest compatibility', () => {
-  it('keeps every archived bundle compatible with the current recognizers', async () => {
+describe('baseline manifest compatibility', () => {
+  it('keeps every baseline bundle compatible with the current recognizers', async () => {
     const results = await checkArchivedManifestCompatibility({ manifestDir, bundlesDir });
     const failures = results.filter((result) => !result.ok);
 
@@ -21,7 +21,7 @@ describe('archived manifest compatibility', () => {
     expect(failures).toEqual([]);
   });
 
-  it('compares an individual bundle against its archived manifest', async () => {
+  it('compares an individual bundle against its baseline manifest', async () => {
     const bundleFile = resolve(
       bundlesDir,
       'bundle_v1784634648_index-CMe0Aw9p_js',
