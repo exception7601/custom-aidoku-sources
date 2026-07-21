@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-21T11:08:48.000Z — `index-CMe0Aw9p.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CMe0Aw9p.js`
+- Saved folder: `bundle_v1784632128_index-CMe0Aw9p_js`
+- SHA-256: `00a2ff339b622faacd128f14a40efb1345046131800a81d9fcc04fee52b5eeb7`
+- Bytes: `579621`
+- Previous bundle: `bundle_v1784622562_index-CMe0Aw9p_js`.
+- Hash changed: no.
+- File name changed: no.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-21T08:29:22.000Z — `index-CMe0Aw9p.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CMe0Aw9p.js`
