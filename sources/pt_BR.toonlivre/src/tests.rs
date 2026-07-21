@@ -87,6 +87,56 @@ fn assert_remote_numbers_fit_i64(path: &str, value: &serde_json::Value) {
 	}
 }
 
+fn assert_signature_recipe(
+	manifest: &ClientManifest,
+	chapter_signature: &str,
+	list_signature: &str,
+) {
+	match manifest.request.signature_strategy.as_ref() {
+		Some(ManifestSignatureStrategy::SeedJwt { .. }) => {
+			assert_eq!(chapter_signature, list_signature);
+			assert_eq!(chapter_signature.split('.').count(), 3);
+			assert!(manifest.request.verify_header.is_none());
+			assert!(manifest.request.session_cookie.mirrors_into.is_empty());
+		}
+		Some(ManifestSignatureStrategy::TimeSha256Base64 { .. }) => {
+			assert_ne!(chapter_signature, list_signature);
+			let decoded = must(
+				"decode chapter signature",
+				STANDARD
+					.decode(chapter_signature.as_bytes())
+					.map_err(|error| format!("base64 error: {error:?}")),
+			);
+			assert!(String::from_utf8(decoded).is_ok());
+		}
+		None => {
+			assert!(!chapter_signature.is_empty());
+			assert!(!list_signature.is_empty());
+		}
+	}
+}
+
+fn assert_passphrase_recipe(manifest: &ClientManifest, passphrase: &str) {
+	match &manifest.decrypt.passphrase {
+		ManifestPassphraseStrategy::UtcMd5Derived {
+			prefix,
+			digest_slice,
+			..
+		}
+		| ManifestPassphraseStrategy::UtcSha256Derived {
+			prefix,
+			digest_slice,
+			..
+		} => {
+			assert!(passphrase.starts_with(prefix.as_str()));
+			assert_eq!(
+				passphrase.len(),
+				prefix.len() + digest_slice.end.saturating_sub(digest_slice.start)
+			);
+		}
+	}
+}
+
 #[aidoku_test]
 fn helper_slugifies_titles_and_formats_chapters() {
 	assert_eq!(
@@ -118,17 +168,17 @@ fn helper_slugifies_titles_and_formats_chapters() {
 		&manifest,
 		"https://toonlivre.net/api/mangas/releases?page=1&limit=48",
 	);
-	assert_ne!(chapter_signature, list_signature);
-	assert_ne!(chapter_signature, "t8v_authX9");
-	assert_ne!(list_signature, "t8v_decoy9");
-	let decoded_chapter_signature = must(
-		"decode chapter signature",
-		STANDARD
-			.decode(chapter_signature.as_bytes())
-			.map_err(|error| format!("base64 error: {error:?}")),
-	);
-	assert!(String::from_utf8(decoded_chapter_signature).is_ok());
-	assert_eq!(current_decryption_passphrase().len(), 30);
+	assert!(matches!(
+		manifest.request.signature_strategy.as_ref(),
+		Some(ManifestSignatureStrategy::SeedJwt { .. })
+	));
+	assert_eq!(chapter_signature, list_signature);
+	assert_eq!(chapter_signature.split('.').count(), 3);
+	assert!(manifest.request.verify_header.is_none());
+	assert!(manifest.request.session_cookie.mirrors_into.is_empty());
+	let bundled_passphrase = current_decryption_passphrase();
+	assert!(bundled_passphrase.starts_with("Magnesium-Strike-Astonish3"));
+	assert_eq!(bundled_passphrase.len(), 34);
 	assert_eq!(token.len(), 26);
 	assert!(
 		token
@@ -207,6 +257,11 @@ fn manifest_fetches_remote_manifest_and_uses_decoded_values() {
 	);
 	assert!(!remote_chapter_signature.is_empty());
 	assert!(!remote_list_signature.is_empty());
+	assert_signature_recipe(
+		&remote_manifest,
+		&remote_chapter_signature,
+		&remote_list_signature,
+	);
 	let token = generate_session_cookie_value(&remote_manifest);
 	assert_eq!(token.len(), 26);
 	assert!(
@@ -215,8 +270,7 @@ fn manifest_fetches_remote_manifest_and_uses_decoded_values() {
 			.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit())
 	);
 	let passphrase = current_decryption_passphrase_for_manifest(&remote_manifest);
-	assert_eq!(passphrase.len(), 30);
-	assert!(passphrase.starts_with("Dealer-Critter-Catnip4"));
+	assert_passphrase_recipe(&remote_manifest, &passphrase);
 }
 
 #[aidoku_test]

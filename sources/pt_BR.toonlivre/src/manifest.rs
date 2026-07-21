@@ -18,18 +18,19 @@ const BUNDLED_MANIFEST_JSON: &str = include_str!("../res/manifest.json");
 const REMOTE_MANIFEST_URL: &str =
 	"https://exception7601.github.io/custom-aidoku-sources/manifest.json";
 const MANIFEST_REQUEST_COUNTER_KEY: &str = "toonlivre.manifest.request-counter";
+const MANIFEST_SEED_TOKEN_KEY: &str = "toonlivre.manifest.seed-token";
 const MANIFEST_SOURCE_ID: &str = "pt_BR.toonlivre";
 const FALLBACK_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 const FALLBACK_SIGNATURE_HEADER: &str = "x-toon-signature";
-const FALLBACK_VERIFY_HEADER: &str = "x-toon-verify";
 const FALLBACK_DATA_KEY_HEADER: &str = "x-toon-datakey";
 const FALLBACK_COOKIE_NAME: &str = "toon_v";
-const FALLBACK_SIGNATURE_DEFAULT: &str = "t8v_decoy9";
-const FALLBACK_SIGNATURE_CHAPTER: &str = "t8v_authX9";
-const FALLBACK_DYNAMIC_SIGNATURE_SALT: &str = "My4xNDE=_1388";
-const FALLBACK_DECRYPTION_PREFIX: &str = "Dealer-Critter-Catnip4";
-const FALLBACK_DECRYPTION_SALT: &str = "toonlivre.tv::v8";
-const FALLBACK_DECRYPTION_SUFFIX: &str = "t17_4v19_b2";
+const FALLBACK_SEED_META_NAME: &str = "t-seed";
+const FALLBACK_SEED_ENDPOINT_PATH: &str = "/api/seed";
+const FALLBACK_SEED_TOKEN_FIELD: &str = "token";
+const FALLBACK_DECRYPTION_PREFIX: &str = "Magnesium-Strike-Astonish3";
+const FALLBACK_DECRYPTION_SALT: &str = "toonlivre.com::v8";
+const FALLBACK_DECRYPTION_SUFFIX: &str = "t8_4v2_b";
+const SEED_TOKEN_EXPIRY_MARGIN_MS: i64 = 120_000;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,7 +52,8 @@ pub(crate) struct ManifestRequest {
 	pub signature_rules: Vec<ManifestSignatureRule>,
 	#[serde(default, rename = "signatureStrategy")]
 	pub signature_strategy: Option<ManifestSignatureStrategy>,
-	pub verify_header: String,
+	#[serde(default)]
+	pub verify_header: Option<String>,
 	pub include_credentials: bool,
 	pub session_cookie: ManifestSessionCookie,
 }
@@ -83,6 +85,15 @@ pub(crate) enum ManifestSignatureStrategy {
 		#[serde(rename = "routeSelector")]
 		route_selector: ManifestRouteSelector,
 	},
+	#[serde(rename = "seed-jwt")]
+	SeedJwt {
+		#[serde(rename = "metaName")]
+		meta_name: String,
+		#[serde(rename = "endpointPath")]
+		endpoint_path: String,
+		#[serde(rename = "tokenField")]
+		token_field: String,
+	},
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -98,6 +109,7 @@ pub(crate) struct ManifestRouteSelector {
 pub(crate) struct ManifestSessionCookie {
 	pub name: String,
 	pub generator: ManifestSessionCookieGenerator,
+	#[serde(default)]
 	pub mirrors_into: Vec<String>,
 }
 
@@ -141,6 +153,18 @@ pub(crate) enum ManifestPassphraseStrategy {
 		#[serde(rename = "digestSlice")]
 		digest_slice: ManifestDigestSlice,
 	},
+	#[serde(rename = "utc-sha256-derived")]
+	UtcSha256Derived {
+		#[serde(rename = "dateFormat")]
+		date_format: String,
+		prefix: String,
+		salt: String,
+		suffix: String,
+		#[serde(rename = "digestEncoding")]
+		digest_encoding: String,
+		#[serde(rename = "digestSlice")]
+		digest_slice: ManifestDigestSlice,
+	},
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -152,14 +176,24 @@ pub(crate) struct ManifestDigestSlice {
 
 pub(crate) fn active_manifest() -> ClientManifest {
 	let bundled = bundled_manifest();
-	if let Some(manifest) = fetch_remote_manifest() {
-		if manifest.request.signature_strategy.is_some()
-			|| bundled.request.signature_strategy.is_none()
-		{
-			source_log!("[toonlivre] active_manifest source=remote");
-			return manifest;
+	if let Some(remote) = fetch_remote_manifest() {
+		let remote_score = manifest_capability_score(&remote);
+		let bundled_score = manifest_capability_score(&bundled);
+
+		if remote_score >= bundled_score {
+			source_log!(
+				"[toonlivre] active_manifest source=remote remote_score={} bundled_score={}",
+				remote_score,
+				bundled_score
+			);
+			return remote;
 		}
-		source_log!("[toonlivre] active_manifest source=local_fallback_stale_remote");
+
+		source_log!(
+			"[toonlivre] active_manifest source=local_fallback_stale_remote remote_score={} bundled_score={}",
+			remote_score,
+			bundled_score
+		);
 		return bundled;
 	}
 	source_log!("[toonlivre] active_manifest source=local_fallback");
@@ -179,29 +213,57 @@ pub(crate) fn current_decryption_passphrase() -> String {
 }
 
 pub(crate) fn signature_value_for_url(manifest: &ClientManifest, url: &str) -> String {
+	let session_token = generate_session_cookie_value(manifest);
+	signature_value_for_url_with_session(manifest, url, &session_token)
+}
+
+pub(crate) fn signature_value_for_url_with_session(
+	manifest: &ClientManifest,
+	url: &str,
+	session_token: &str,
+) -> String {
 	if let Some(strategy) = manifest.request.signature_strategy.as_ref() {
-		return dynamic_signature_value(strategy, url);
+		return dynamic_signature_value(manifest, strategy, url, session_token);
 	}
-	for rule in manifest.request.signature_rules.iter() {
-		if rule.default {
+
+	select_static_signature_value(&manifest.request.signature_rules, url)
+}
+
+pub(crate) fn token_mirror_header_names(manifest: &ClientManifest) -> Vec<String> {
+	let mut header_names = Vec::new();
+
+	if let Some(verify_header) = manifest.request.verify_header.as_ref() {
+		if !verify_header.trim().is_empty() {
+			header_names.push(verify_header.clone());
+		}
+	}
+
+	for header_name in manifest.request.session_cookie.mirrors_into.iter() {
+		if header_name.trim().is_empty()
+			|| header_names.iter().any(|existing| existing == header_name)
+		{
 			continue;
 		}
-		if rule
-			.when
-			.as_ref()
-			.map(|matcher| !matcher.url_contains.is_empty() && url.contains(&matcher.url_contains))
-			.unwrap_or(false)
-		{
-			return rule.value.clone();
-		}
+
+		header_names.push(header_name.clone());
 	}
-	manifest
-		.request
-		.signature_rules
-		.iter()
-		.find(|rule| rule.default)
-		.map(|rule| rule.value.clone())
-		.unwrap_or_else(|| String::from(FALLBACK_SIGNATURE_DEFAULT))
+
+	header_names
+}
+
+pub(crate) fn describe_token_mirror(manifest: &ClientManifest) -> String {
+	let mut parts = token_mirror_header_names(manifest);
+	parts.push(format!("cookie {}", manifest.request.session_cookie.name));
+
+	let mut description = String::new();
+	for (index, part) in parts.iter().enumerate() {
+		if index > 0 {
+			description.push_str(" + ");
+		}
+		description.push_str(part.as_str());
+	}
+
+	description
 }
 
 pub(crate) fn generate_session_cookie_value(manifest: &ClientManifest) -> String {
@@ -218,6 +280,8 @@ pub(crate) fn generate_session_cookie_value(manifest: &ClientManifest) -> String
 }
 
 pub(crate) fn current_decryption_passphrase_for_manifest(manifest: &ClientManifest) -> String {
+	let date = current_utc_date_string();
+
 	match &manifest.decrypt.passphrase {
 		ManifestPassphraseStrategy::UtcMd5Derived {
 			date_format: _,
@@ -226,17 +290,15 @@ pub(crate) fn current_decryption_passphrase_for_manifest(manifest: &ClientManife
 			suffix,
 			digest_encoding: _,
 			digest_slice,
-		} => {
-			let date = current_utc_date_string();
-			let seed = format!("{date}{salt}{suffix}");
-			let mut hasher = Md5::new();
-			hasher.update(seed.as_bytes());
-			let digest = hasher.finalize();
-			let digest_hex = hex_string(&digest);
-			let start = digest_slice.start.min(digest_hex.len());
-			let end = digest_slice.end.min(digest_hex.len()).max(start);
-			format!("{prefix}{}", &digest_hex[start..end])
-		}
+		} => build_md5_passphrase(prefix, salt, suffix, digest_slice, &date),
+		ManifestPassphraseStrategy::UtcSha256Derived {
+			date_format: _,
+			prefix,
+			salt,
+			suffix,
+			digest_encoding: _,
+			digest_slice,
+		} => build_sha256_passphrase(prefix, salt, suffix, digest_slice, &date),
 	}
 }
 
@@ -280,16 +342,25 @@ fn validate_manifest(manifest: ClientManifest) -> Option<ClientManifest> {
 	if manifest.request.user_agent.trim().is_empty()
 		|| manifest.request.accept_language.trim().is_empty()
 		|| manifest.request.signature_header.trim().is_empty()
-		|| manifest.request.verify_header.trim().is_empty()
 		|| (manifest.request.signature_rules.is_empty()
 			&& manifest.request.signature_strategy.is_none())
 		|| manifest.request.session_cookie.name.trim().is_empty()
-		|| manifest.request.session_cookie.mirrors_into.is_empty()
+		|| manifest
+			.request
+			.session_cookie
+			.mirrors_into
+			.iter()
+			.any(|header_name| header_name.trim().is_empty())
 		|| manifest.decrypt.data_key_header.trim().is_empty()
 		|| manifest.decrypt.payload_selector.trim().is_empty()
 		|| manifest.decrypt.algorithm != "cryptojs-rabbit"
 	{
 		return None;
+	}
+	if let Some(verify_header) = manifest.request.verify_header.as_ref() {
+		if verify_header.trim().is_empty() {
+			return None;
+		}
 	}
 	if let Some(strategy) = manifest.request.signature_strategy.as_ref() {
 		match strategy {
@@ -307,6 +378,18 @@ fn validate_manifest(manifest: ClientManifest) -> Option<ClientManifest> {
 					return None;
 				}
 			}
+			ManifestSignatureStrategy::SeedJwt {
+				meta_name,
+				endpoint_path,
+				token_field,
+			} => {
+				if meta_name.trim().is_empty()
+					|| endpoint_path.trim().is_empty()
+					|| token_field.trim().is_empty()
+				{
+					return None;
+				}
+			}
 		}
 	}
 	match &manifest.request.session_cookie.generator {
@@ -318,6 +401,14 @@ fn validate_manifest(manifest: ClientManifest) -> Option<ClientManifest> {
 	}
 	match &manifest.decrypt.passphrase {
 		ManifestPassphraseStrategy::UtcMd5Derived {
+			date_format,
+			prefix,
+			salt,
+			suffix,
+			digest_encoding,
+			digest_slice,
+		}
+		| ManifestPassphraseStrategy::UtcSha256Derived {
 			date_format,
 			prefix,
 			salt,
@@ -348,30 +439,13 @@ fn default_manifest() -> ClientManifest {
 			user_agent: String::from(FALLBACK_USER_AGENT),
 			accept_language: String::from(ACCEPT_LANGUAGE),
 			signature_header: String::from(FALLBACK_SIGNATURE_HEADER),
-			signature_rules: vec![
-				ManifestSignatureRule {
-					value: String::from(FALLBACK_SIGNATURE_CHAPTER),
-					default: false,
-					when: Some(ManifestSignatureMatch {
-						url_contains: String::from("/chapters"),
-					}),
-				},
-				ManifestSignatureRule {
-					value: String::from(FALLBACK_SIGNATURE_DEFAULT),
-					default: true,
-					when: None,
-				},
-			],
-			signature_strategy: Some(ManifestSignatureStrategy::TimeSha256Base64 {
-				timestamp_divisor: 30_000,
-				salt: String::from(FALLBACK_DYNAMIC_SIGNATURE_SALT),
-				route_selector: ManifestRouteSelector {
-					when_url_contains: String::from("/chapters"),
-					when_matched: String::from("chapters"),
-					otherwise: String::from("other"),
-				},
+			signature_rules: vec![],
+			signature_strategy: Some(ManifestSignatureStrategy::SeedJwt {
+				meta_name: String::from(FALLBACK_SEED_META_NAME),
+				endpoint_path: String::from(FALLBACK_SEED_ENDPOINT_PATH),
+				token_field: String::from(FALLBACK_SEED_TOKEN_FIELD),
 			}),
-			verify_header: String::from(FALLBACK_VERIFY_HEADER),
+			verify_header: None,
 			include_credentials: true,
 			session_cookie: ManifestSessionCookie {
 				name: String::from(FALLBACK_COOKIE_NAME),
@@ -389,14 +463,14 @@ fn default_manifest() -> ClientManifest {
 						},
 					],
 				},
-				mirrors_into: vec![String::from(FALLBACK_VERIFY_HEADER)],
+				mirrors_into: vec![],
 			},
 		},
 		decrypt: DecryptManifest {
 			data_key_header: String::from(FALLBACK_DATA_KEY_HEADER),
 			payload_selector: String::from("header-named-or-first-string"),
 			algorithm: String::from("cryptojs-rabbit"),
-			passphrase: ManifestPassphraseStrategy::UtcMd5Derived {
+			passphrase: ManifestPassphraseStrategy::UtcSha256Derived {
 				date_format: String::from("YYYY-MM-DD"),
 				prefix: String::from(FALLBACK_DECRYPTION_PREFIX),
 				salt: String::from(FALLBACK_DECRYPTION_SALT),
@@ -408,7 +482,48 @@ fn default_manifest() -> ClientManifest {
 	}
 }
 
-fn dynamic_signature_value(strategy: &ManifestSignatureStrategy, url: &str) -> String {
+fn manifest_capability_score(manifest: &ClientManifest) -> i32 {
+	let signature_score = match manifest.request.signature_strategy.as_ref() {
+		Some(ManifestSignatureStrategy::SeedJwt { .. }) => 30,
+		Some(ManifestSignatureStrategy::TimeSha256Base64 { .. }) => 20,
+		None => 10,
+	};
+	let passphrase_score = match manifest.decrypt.passphrase {
+		ManifestPassphraseStrategy::UtcSha256Derived { .. } => 6,
+		ManifestPassphraseStrategy::UtcMd5Derived { .. } => 3,
+	};
+
+	signature_score + passphrase_score
+}
+
+fn select_static_signature_value(rules: &[ManifestSignatureRule], url: &str) -> String {
+	for rule in rules.iter() {
+		if rule.default {
+			continue;
+		}
+		if rule
+			.when
+			.as_ref()
+			.map(|matcher| !matcher.url_contains.is_empty() && url.contains(&matcher.url_contains))
+			.unwrap_or(false)
+		{
+			return rule.value.clone();
+		}
+	}
+
+	rules
+		.iter()
+		.find(|rule| rule.default)
+		.map(|rule| rule.value.clone())
+		.unwrap_or_default()
+}
+
+fn dynamic_signature_value(
+	manifest: &ClientManifest,
+	strategy: &ManifestSignatureStrategy,
+	url: &str,
+	session_token: &str,
+) -> String {
 	match strategy {
 		ManifestSignatureStrategy::TimeSha256Base64 {
 			timestamp_divisor,
@@ -427,7 +542,153 @@ fn dynamic_signature_value(strategy: &ManifestSignatureStrategy, url: &str) -> S
 			let digest = sha256_hex(payload.as_bytes());
 			STANDARD.encode(format!("{timestamp}:{digest}").as_bytes())
 		}
+		ManifestSignatureStrategy::SeedJwt {
+			endpoint_path,
+			token_field,
+			..
+		} => seed_jwt_signature_value(manifest, endpoint_path, token_field, session_token),
 	}
+}
+
+fn seed_jwt_signature_value(
+	manifest: &ClientManifest,
+	endpoint_path: &str,
+	token_field: &str,
+	session_token: &str,
+) -> String {
+	let cached = cached_seed_token();
+	if let Some(token) = cached.as_ref() {
+		if seed_token_is_fresh(token) {
+			return token.clone();
+		}
+	}
+
+	if let Some(token) = fetch_seed_token(manifest, endpoint_path, token_field, session_token) {
+		cache_seed_token(&token);
+		return token;
+	}
+
+	cached.unwrap_or_default()
+}
+
+fn cached_seed_token() -> Option<String> {
+	let token = defaults_get::<String>(MANIFEST_SEED_TOKEN_KEY)?;
+	if token.trim().is_empty() {
+		return None;
+	}
+
+	Some(token)
+}
+
+fn fetch_seed_token(
+	manifest: &ClientManifest,
+	endpoint_path: &str,
+	token_field: &str,
+	session_token: &str,
+) -> Option<String> {
+	let seed_url = site_url_with_path(&manifest.site_url, endpoint_path);
+	let cookie = format!("{}={session_token}", manifest.request.session_cookie.name);
+	let response = Request::get(seed_url.as_str())
+		.ok()?
+		.header("accept", "application/json")
+		.header("accept-language", &manifest.request.accept_language)
+		.header("user-agent", &manifest.request.user_agent)
+		.header("origin", &manifest.site_url)
+		.header("referer", &manifest.site_url)
+		.header("cookie", &cookie)
+		.send()
+		.ok()?;
+	if !(200..300).contains(&response.status_code()) {
+		return None;
+	}
+
+	let body = response.get_string().ok()?;
+	let parsed = serde_json::from_str::<serde_json::Value>(&body).ok()?;
+	let token = parsed.get(token_field)?.as_str()?.trim();
+	if token.is_empty() {
+		return None;
+	}
+
+	Some(String::from(token))
+}
+
+fn cache_seed_token(token: &str) {
+	defaults_set(
+		MANIFEST_SEED_TOKEN_KEY,
+		DefaultValue::String(String::from(token)),
+	);
+}
+
+fn seed_token_is_fresh(token: &str) -> bool {
+	decode_jwt_expiry_millis(token)
+		.map(|expiry_millis| {
+			expiry_millis > current_date().saturating_mul(1_000) + SEED_TOKEN_EXPIRY_MARGIN_MS
+		})
+		.unwrap_or(false)
+}
+
+fn decode_jwt_expiry_millis(token: &str) -> Option<i64> {
+	let segments: Vec<&str> = token.split('.').collect();
+	if segments.len() != 3 {
+		return None;
+	}
+
+	let mut normalized = String::from(segments[1]);
+	normalized = normalized.replace('-', "+");
+	normalized = normalized.replace('_', "/");
+	while normalized.len() % 4 != 0 {
+		normalized.push('=');
+	}
+
+	let payload = STANDARD.decode(normalized.as_bytes()).ok()?;
+	let parsed = serde_json::from_slice::<serde_json::Value>(&payload).ok()?;
+	parsed
+		.get("exp")?
+		.as_i64()
+		.map(|expiry| expiry.saturating_mul(1_000))
+}
+
+fn site_url_with_path(site_url: &str, path: &str) -> String {
+	if path.starts_with("http://") || path.starts_with("https://") {
+		return String::from(path);
+	}
+
+	if path.starts_with('/') {
+		return format!("{}{}", site_url.trim_end_matches('/'), path);
+	}
+
+	format!("{}/{}", site_url.trim_end_matches('/'), path)
+}
+
+fn build_md5_passphrase(
+	prefix: &str,
+	salt: &str,
+	suffix: &str,
+	digest_slice: &ManifestDigestSlice,
+	date: &str,
+) -> String {
+	let seed = format!("{date}{salt}{suffix}");
+	let mut hasher = Md5::new();
+	hasher.update(seed.as_bytes());
+	let digest = hasher.finalize();
+	let digest_hex = hex_string(&digest);
+	let start = digest_slice.start.min(digest_hex.len());
+	let end = digest_slice.end.min(digest_hex.len()).max(start);
+	format!("{prefix}{}", &digest_hex[start..end])
+}
+
+fn build_sha256_passphrase(
+	prefix: &str,
+	salt: &str,
+	suffix: &str,
+	digest_slice: &ManifestDigestSlice,
+	date: &str,
+) -> String {
+	let seed = format!("{date}{salt}{suffix}");
+	let digest_hex = sha256_hex(seed.as_bytes());
+	let start = digest_slice.start.min(digest_hex.len());
+	let end = digest_slice.end.min(digest_hex.len()).max(start);
+	format!("{prefix}{}", &digest_hex[start..end])
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

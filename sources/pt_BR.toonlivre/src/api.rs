@@ -14,8 +14,9 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-	BASE_URL, active_manifest, current_decryption_passphrase_for_manifest,
-	generate_session_cookie_value, percent_encode, signature_value_for_url,
+	BASE_URL, active_manifest, current_decryption_passphrase_for_manifest, describe_token_mirror,
+	generate_session_cookie_value, percent_encode, signature_value_for_url_with_session,
+	token_mirror_header_names,
 };
 
 const API_BASE: &str = "https://toonlivre.net/api";
@@ -231,13 +232,14 @@ where
 	T: serde::de::DeserializeOwned,
 {
 	let manifest = active_manifest();
-	let signature_value = signature_value_for_url(&manifest, url);
 	let verification_token = generate_session_cookie_value(&manifest);
+	let signature_value = signature_value_for_url_with_session(&manifest, url, &verification_token);
+	let token_mirror = describe_token_mirror(&manifest);
 	source_log!(
-		"[toonlivre] request_json start url={} signature_header={} verify_header={} cookie_name={} passphrase={}",
+		"[toonlivre] request_json start url={} signature_header={} token_mirror={} cookie_name={} passphrase={}",
 		url,
 		manifest.request.signature_header,
-		manifest.request.verify_header,
+		token_mirror,
 		manifest.request.session_cookie.name,
 		current_decryption_passphrase_for_manifest(&manifest)
 	);
@@ -253,8 +255,7 @@ where
 		.header("referer", BASE_URL)
 		.header("cookie", &cookie);
 	request.set_header(manifest.request.signature_header.as_str(), &signature_value);
-	request.set_header(&manifest.request.verify_header, &verification_token);
-	for header_name in manifest.request.session_cookie.mirrors_into.iter() {
+	for header_name in token_mirror_header_names(&manifest).iter() {
 		request.set_header(header_name, &verification_token);
 	}
 	let response = request.send().map_err(|error| {
@@ -379,10 +380,7 @@ fn format_request_failure(context: RequestFailureContext<'_>) -> String {
 	push_detail_line(
 		&mut message,
 		"Token mirror",
-		&format!(
-			"{} + cookie {}",
-			context.manifest.request.verify_header, context.manifest.request.session_cookie.name
-		),
+		&describe_token_mirror(context.manifest),
 	);
 
 	let mut response_headers = Vec::new();
@@ -418,6 +416,7 @@ fn format_request_failure(context: RequestFailureContext<'_>) -> String {
 		context.content_type,
 		context.retry_after,
 		context.rate_reset,
+		context.manifest,
 	) {
 		push_detail_line(&mut message, "Hint", &hint);
 	}
@@ -483,10 +482,13 @@ fn request_failure_hint(
 	content_type: Option<&str>,
 	retry_after: Option<&str>,
 	rate_reset: Option<&str>,
+	manifest: &crate::ClientManifest,
 ) -> Option<String> {
 	if status == 403 {
-		return Some(String::from(
-			"O endpoint rejeitou o token espelhado ou a assinatura do manifesto. Confira os headers de capítulo e reextraia o manifesto.",
+		return Some(format!(
+			"O endpoint rejeitou a assinatura do manifesto ou a semente/token dinâmico. Confira `{}` e {}.",
+			manifest.request.signature_header,
+			describe_token_mirror(manifest)
 		));
 	}
 	if status == 429 {
