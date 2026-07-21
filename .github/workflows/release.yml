@@ -96,7 +96,7 @@ jobs:
         run: ./scripts/release.sh
 
       - name: Copy manifest into `public`
-        run: cp manifest/manifest.json public/manifest.json
+        run: cp extrator/manifest/manifest.json public/manifest.json
 
       - name: Commit release metadata
         run: |
