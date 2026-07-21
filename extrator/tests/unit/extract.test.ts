@@ -21,4 +21,28 @@ describe('manifest extraction', () => {
     expect(manifest.decrypt.dataKeyHeader).toBe('x-toon-datakey');
     expect(manifest.decrypt.passphrase.prefix).toBe('Dealer-Critter-Catnip4');
   });
+
+  it('extracts the seed-jwt strategy from the new bundle pattern', async () => {
+    const manifest = await extractManifest({
+      sourceId: DEFAULT_SOURCE_ID,
+      siteUrl: DEFAULT_SITE_URL,
+      bundleFiles: [fixturePath('toonlivre-bundle-seed-snippet.js')],
+    });
+
+    expect(manifest.request.signatureRules).toEqual([]);
+    expect(manifest.request.signatureStrategy).toEqual({
+      kind: 'seed-jwt',
+      metaName: 't-seed',
+      endpointPath: '/api/seed',
+      tokenField: 'token',
+    });
+    expect(manifest.request.verifyHeader).toBeUndefined();
+    expect(manifest.request.sessionCookie.mirrorsInto).toEqual([]);
+    expect(manifest.decrypt.passphrase).toMatchObject({
+      kind: 'utc-sha256-derived',
+      prefix: 'Magnesium-Strike-Astonish3',
+      salt: 'toonlivre.com::v8',
+      suffix: 't8_4v2_b',
+    });
+  });
 });

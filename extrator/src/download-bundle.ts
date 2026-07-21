@@ -30,6 +30,7 @@ export interface BundleDownloadResult {
   changelogFile: string;
   bundleUrl: string;
   bundleHash: string;
+  reusedExisting?: boolean;
 }
 
 interface BundleMetadata {
@@ -80,6 +81,24 @@ export async function downloadBundle(
   const response = await fetchText(bundleUrl);
   const bundleHash = sha256(response.body);
   const bundleFileName = sanitizeBundleFileName(basename(new URL(response.url).pathname));
+  const changelogFile = join(outputDir, CHANGELOG_FILE_NAME);
+  const existingBundle = await findBundleRecordByHash(outputDir, bundleHash);
+
+  if (existingBundle) {
+    const directory = join(outputDir, existingBundle.directoryName);
+
+    return {
+      directory,
+      bundleFile: join(directory, existingBundle.metadata.bundleFileName),
+      metadataFile: join(directory, 'metadata.json'),
+      analysisFile: join(directory, 'analysis.json'),
+      changelogFile,
+      bundleUrl: existingBundle.metadata.bundleUrl,
+      bundleHash: existingBundle.metadata.bundleHash,
+      reusedExisting: true,
+    };
+  }
+
   const epochSeconds = Math.floor(Date.now() / 1_000);
   const directoryName = `bundle_v${epochSeconds}_${sanitizeBundleDirectoryName(bundleFileName)}`;
   const directory = join(outputDir, directoryName);
@@ -88,7 +107,6 @@ export async function downloadBundle(
   const bundleFile = join(directory, bundleFileName);
   const metadataFile = join(directory, 'metadata.json');
   const analysisFile = join(directory, 'analysis.json');
-  const changelogFile = join(outputDir, CHANGELOG_FILE_NAME);
 
   await writeFile(bundleFile, response.body, 'utf8');
 
@@ -253,6 +271,38 @@ async function findPreviousBundleRecord(
         directoryName,
         metadata: JSON.parse(metadataContents) as BundleMetadata,
       };
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
+}
+
+async function findBundleRecordByHash(
+  outputDir: string,
+  bundleHash: string
+): Promise<PreviousBundleRecord | undefined> {
+  const entries = await readdir(outputDir, { withFileTypes: true });
+  const bundleDirectories = entries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('bundle_v'))
+    .map((entry) => entry.name)
+    .sort()
+    .reverse();
+
+  for (const directoryName of bundleDirectories) {
+    const metadataPath = join(outputDir, directoryName, 'metadata.json');
+
+    try {
+      const metadataContents = await readFile(metadataPath, 'utf8');
+      const metadata = JSON.parse(metadataContents) as BundleMetadata;
+
+      if (metadata.bundleHash === bundleHash) {
+        return {
+          directoryName,
+          metadata,
+        };
+      }
     } catch {
       continue;
     }

@@ -13,7 +13,7 @@ The goal is to keep unstable frontend details out of `sources/pt_BR.toonlivre`.
 
 ## Main files
 
-- `src/cli.ts` exposes the `extract`, `validate`, `probe`, and `download-bundle` commands;
+- `src/cli.ts` exposes the `extract`, `validate`, `probe`, `compat`, and `download-bundle` commands;
 - `src/extract.ts` runs the full extraction flow;
 - `src/manifest.ts` defines the manifest schema;
 - `src/runtime.ts` rebuilds request and decrypt behavior from the manifest;
@@ -35,6 +35,12 @@ Run the unit tests.
 env -C extrator npm test
 ```
 
+Run the archived bundle compatibility checks.
+
+```sh
+env -C extrator npm run test:compat
+```
+
 Run the live extractor test suite.
 
 ```sh
@@ -48,16 +54,16 @@ env -C extrator npm run lint
 env -C extrator npm run typecheck
 ```
 
-Validate the source manifest against the live chapter canary.
+Validate the current extractor manifest against the live chapter canary.
 
 ```sh
-env -C extrator node dist/cli.js validate --manifest ../sources/pt_BR.toonlivre/res/manifest.json
+env -C extrator node dist/cli.js validate --manifest manifest/manifest.json
 ```
 
 Probe whether the saved manifest bundle still matches the live site.
 
 ```sh
-env -C extrator node dist/cli.js probe --manifest ../sources/pt_BR.toonlivre/res/manifest.json
+env -C extrator node dist/cli.js probe --manifest manifest/manifest.json
 ```
 
 Extract a fresh manifest from the live site.
@@ -72,6 +78,12 @@ Download the current live bundle snapshot.
 env -C extrator node dist/cli.js download-bundle --entry-url https://toonlivre.net/ --out-dir bundles
 ```
 
+Compare one saved bundle file against its archived manifest.
+
+```sh
+env -C extrator node dist/cli.js compat --bundle-file bundles/bundle_v1784634648_index-CMe0Aw9p_js/index-CMe0Aw9p.js
+```
+
 ## Inputs
 
 The extractor accepts:
@@ -84,13 +96,14 @@ The extractor accepts:
 
 The workflow writes:
 
-- `manifest/manifest.json` as the latest manifest;
-- `manifest/manifest_vYYYYMMDD-HHMM.json` as a dated snapshot;
+- `extrator/manifest/manifest.json` as the latest manifest;
+- `extrator/manifest/history/manifest_vYYYYMMDD-HHMM.json` as dated history;
+- `extrator/manifest/bundles/*.json` as per-bundle compatibility baselines;
 - `sources/pt_BR.toonlivre/res/manifest.json` as the bundled fallback for the source.
 
 ## Tests
 
-- `tests/unit/` covers parsing, recognizers, and runtime helpers;
+- `tests/unit/` covers parsing, recognizers, runtime helpers, and archived bundle compatibility;
 - `tests/live/` covers live extraction and a real chapter request.
 
 ## Source integration
@@ -109,6 +122,8 @@ When ToonLivre changes, use this sequence.
 
 - run `probe` to confirm whether the live bundle changed;
 - run `extract` to generate a fresh manifest;
-- run `validate` against `sources/pt_BR.toonlivre/res/manifest.json`;
+- run `compat` to confirm the saved bundle snapshots still match their archived manifests;
+- run `validate` against `manifest/manifest.json`;
+- sync the manifest into `sources/pt_BR.toonlivre/res/manifest.json` when you are ready to update the source fallback;
 - run `cargo test` in `sources/pt_BR.toonlivre`;
 - package and verify the source if the tests pass.

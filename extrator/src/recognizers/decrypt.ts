@@ -111,8 +111,9 @@ function extractPassphraseStrategy(
 
   const splitLiteralByName = new Map<string, string>();
   let digestVariableName: string | undefined;
+  let digestAlgorithm: 'MD5' | 'SHA256' | undefined;
   let digestSlice: PassphraseStrategy['digestSlice'] | undefined;
-  let md5Argument: t.Node | undefined;
+  let digestArgument: t.Node | undefined;
   let returnExpression: t.Node | undefined;
 
   for (const statementPath of bodyPath.get('body')) {
@@ -140,8 +141,9 @@ function extractPassphraseStrategy(
         }
 
         digestVariableName = name;
+        digestAlgorithm = digestMetadata.algorithm;
         digestSlice = digestMetadata.digestSlice;
-        md5Argument = digestMetadata.md5Argument;
+        digestArgument = digestMetadata.digestArgument;
       }
 
       continue;
@@ -152,7 +154,13 @@ function extractPassphraseStrategy(
     }
   }
 
-  if (!digestVariableName || !digestSlice || !md5Argument || !returnExpression) {
+  if (
+    !digestVariableName ||
+    !digestAlgorithm ||
+    !digestSlice ||
+    !digestArgument ||
+    !returnExpression
+  ) {
     return undefined;
   }
 
@@ -163,14 +171,14 @@ function extractPassphraseStrategy(
     return undefined;
   }
 
-  const md5Parts = flattenPlusExpression(resolveBoundExpression(functionPath.scope, md5Argument));
-  const saltVariableName = findJoinedVariableName(md5Parts[1]);
-  const suffixVariableName = findJoinedVariableName(md5Parts[2]);
+  const digestParts = flattenPlusExpression(resolveBoundExpression(functionPath.scope, digestArgument));
+  const saltVariableName = findJoinedVariableName(digestParts[1]);
+  const suffixVariableName = findJoinedVariableName(digestParts[2]);
   if (!saltVariableName || !suffixVariableName) {
     return undefined;
   }
 
-  const dateExpression = md5Parts[0];
+  const dateExpression = digestParts[0];
   if (!dateExpression || !isUtcDateTemplate(functionPath.scope, dateExpression)) {
     return undefined;
   }
@@ -182,8 +190,20 @@ function extractPassphraseStrategy(
     return undefined;
   }
 
+  if (digestAlgorithm === 'MD5') {
+    return {
+      kind: 'utc-md5-derived',
+      dateFormat: 'YYYY-MM-DD',
+      prefix,
+      salt,
+      suffix,
+      digestEncoding: 'hex',
+      digestSlice,
+    };
+  }
+
   return {
-    kind: 'utc-md5-derived',
+    kind: 'utc-sha256-derived',
     dateFormat: 'YYYY-MM-DD',
     prefix,
     salt,
@@ -237,8 +257,9 @@ function extractSplitLiteral(path: NodePath<t.Node>): string | undefined {
 
 function extractDigestMetadata(path: NodePath<t.Node>):
   | {
+      algorithm: 'MD5' | 'SHA256';
       digestSlice: PassphraseStrategy['digestSlice'];
-      md5Argument: t.Node;
+      digestArgument: t.Node;
     }
   | undefined {
   if (!path.isCallExpression() || !path.get('callee').isMemberExpression()) {
@@ -278,28 +299,37 @@ function extractDigestMetadata(path: NodePath<t.Node>):
     return undefined;
   }
 
-  const md5CallPath = toStringCallee.get('object');
-  if (!md5CallPath.isCallExpression() || !md5CallPath.get('callee').isMemberExpression()) {
+  const digestCallPath = toStringCallee.get('object');
+  if (!digestCallPath.isCallExpression() || !digestCallPath.get('callee').isMemberExpression()) {
     return undefined;
   }
 
-  const md5Callee = md5CallPath.get('callee');
-  const md5Property = md5Callee.get('property');
-  if (Array.isArray(md5Property) || !md5Property.isIdentifier({ name: 'MD5' })) {
+  const digestCallee = digestCallPath.get('callee');
+  const digestProperty = digestCallee.get('property');
+  if (Array.isArray(digestProperty) || !digestProperty.isIdentifier()) {
     return undefined;
   }
 
-  const md5ArgumentPath = md5CallPath.get('arguments.0');
-  if (!md5ArgumentPath || Array.isArray(md5ArgumentPath)) {
+  const algorithm =
+    digestProperty.node.name === 'MD5' || digestProperty.node.name === 'SHA256'
+      ? digestProperty.node.name
+      : undefined;
+  if (!algorithm) {
+    return undefined;
+  }
+
+  const digestArgumentPath = digestCallPath.get('arguments.0');
+  if (!digestArgumentPath || Array.isArray(digestArgumentPath)) {
     return undefined;
   }
 
   return {
+    algorithm,
     digestSlice: {
       start: startPath.node.value,
       end: endPath.node.value,
     },
-    md5Argument: md5ArgumentPath.node,
+    digestArgument: digestArgumentPath.node,
   };
 }
 

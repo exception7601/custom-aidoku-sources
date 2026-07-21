@@ -40,7 +40,19 @@ liveDescribe('live ToonLivre extraction', () => {
     );
 
     expect(manifest.request.signatureHeader).toBe('x-toon-signature');
+    expect(manifest.request.signatureRules).toEqual([]);
+    expect(manifest.request.signatureStrategy).toEqual({
+      kind: 'seed-jwt',
+      metaName: 't-seed',
+      endpointPath: '/api/seed',
+      tokenField: 'token',
+    });
+    expect(manifest.request.verifyHeader).toBeUndefined();
     expect(manifest.request.sessionCookie.name).toBe('toon_v');
+    expect(manifest.decrypt.passphrase).toMatchObject({
+      kind: 'utc-sha256-derived',
+      prefix: 'Magnesium-Strike-Astonish3',
+    });
     expect(validation.ok).toBe(true);
     expect(validation.pageCount).toBeGreaterThan(0);
     expect(Array.isArray(validation.decrypted.pages)).toBe(true);

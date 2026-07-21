@@ -24,4 +24,24 @@ describe('decrypt recognizer', () => {
       },
     });
   });
+
+  it('extracts the SHA-256 passphrase recipe from the new bundle pattern', async () => {
+    const bundle = await readFixture('toonlivre-bundle-seed-snippet.js');
+    const recognition = recognizeDecryptSignals(parseBundle(bundle));
+
+    expect(recognition.algorithm).toBe('cryptojs-rabbit');
+    expect(recognition.passphraseFunctionName).toBe('sv');
+    expect(recognition.passphrase).toEqual({
+      kind: 'utc-sha256-derived',
+      dateFormat: 'YYYY-MM-DD',
+      prefix: 'Magnesium-Strike-Astonish3',
+      salt: 'toonlivre.com::v8',
+      suffix: 't8_4v2_b',
+      digestEncoding: 'hex',
+      digestSlice: {
+        start: 0,
+        end: 8,
+      },
+    });
+  });
 });

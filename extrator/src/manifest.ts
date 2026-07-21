@@ -14,7 +14,7 @@ export const signatureRuleSchema = z
     message: 'A signature rule must define `default` or `when`.',
   });
 
-export const dynamicSignatureStrategySchema = z.object({
+const timeSha256Base64SignatureStrategySchema = z.object({
   kind: z.literal('time-sha256-base64'),
   timestampDivisor: z.number().int().positive(),
   salt: z.string().min(1),
@@ -24,6 +24,18 @@ export const dynamicSignatureStrategySchema = z.object({
     otherwise: z.string().min(1),
   }),
 });
+
+const seedJwtSignatureStrategySchema = z.object({
+  kind: z.literal('seed-jwt'),
+  metaName: z.string().min(1),
+  endpointPath: z.string().min(1),
+  tokenField: z.string().min(1),
+});
+
+export const dynamicSignatureStrategySchema = z.discriminatedUnion('kind', [
+  timeSha256Base64SignatureStrategySchema,
+  seedJwtSignatureStrategySchema,
+]);
 
 export const sessionCookieGeneratorSchema = z.object({
   kind: z.literal('random-base36-concat'),
@@ -38,7 +50,7 @@ export const sessionCookieGeneratorSchema = z.object({
     .min(1),
 });
 
-export const passphraseSchema = z.object({
+const utcMd5DerivedPassphraseSchema = z.object({
   kind: z.literal('utc-md5-derived'),
   dateFormat: z.literal('YYYY-MM-DD'),
   prefix: z.string(),
@@ -50,6 +62,24 @@ export const passphraseSchema = z.object({
     end: z.number().int().positive(),
   }),
 });
+
+const utcSha256DerivedPassphraseSchema = z.object({
+  kind: z.literal('utc-sha256-derived'),
+  dateFormat: z.literal('YYYY-MM-DD'),
+  prefix: z.string(),
+  salt: z.string(),
+  suffix: z.string(),
+  digestEncoding: z.literal('hex'),
+  digestSlice: z.object({
+    start: z.number().int().min(0),
+    end: z.number().int().positive(),
+  }),
+});
+
+export const passphraseSchema = z.discriminatedUnion('kind', [
+  utcMd5DerivedPassphraseSchema,
+  utcSha256DerivedPassphraseSchema,
+]);
 
 export const manifestSchema = z.object({
   schemaVersion: z.literal(1),
@@ -69,12 +99,12 @@ export const manifestSchema = z.object({
       signatureHeader: z.string().min(1),
       signatureRules: z.array(signatureRuleSchema),
       signatureStrategy: dynamicSignatureStrategySchema.optional(),
-      verifyHeader: z.string().min(1),
+      verifyHeader: z.string().min(1).optional(),
       includeCredentials: z.boolean(),
       sessionCookie: z.object({
         name: z.string().min(1),
         generator: sessionCookieGeneratorSchema,
-        mirrorsInto: z.array(z.string().min(1)).min(1),
+        mirrorsInto: z.array(z.string().min(1)).default([]),
       }),
     })
     .refine(

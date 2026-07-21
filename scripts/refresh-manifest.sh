@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/refresh-manifest.sh [--force] [--no-commit] [--site <url>]
+Usage: ./scripts/refresh-manifest.sh [--force] [--no-commit] [--site <url>] [--sync-source-fallback]
 
 Refreshes the ToonLivre manifest locally.
 By default, the script probes the live site and only regenerates the manifest
@@ -11,14 +11,16 @@ when the bundle changed.
 Use `--force` to skip the probe and regenerate immediately.
 Use `--no-commit` to skip the local manifest commit.
 The script also downloads the matching live bundle snapshot into
-`extrator/bundles/` before extraction.
+`extrator/bundles/` before extraction and refreshes
+`extrator/manifest/manifest.json`.
 EOF
 }
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 DEFAULT_SITE_URL="https://toonlivre.net/"
 SITE_URL="$DEFAULT_SITE_URL"
-MANIFEST_RELATIVE_PATH="manifest/manifest.json"
+MANIFEST_RELATIVE_PATH="extrator/manifest/manifest.json"
+MANIFEST_ARCHIVE_RELATIVE_PATH="extrator/manifest"
 SOURCE_FALLBACK_RELATIVE_PATH="sources/pt_BR.toonlivre/res/manifest.json"
 MANIFEST_PATH="$REPO_ROOT/$MANIFEST_RELATIVE_PATH"
 SOURCE_FALLBACK_PATH="$REPO_ROOT/$SOURCE_FALLBACK_RELATIVE_PATH"
@@ -26,6 +28,7 @@ EXTRATOR_DIR="$REPO_ROOT/extrator"
 BUNDLES_DIR="$EXTRATOR_DIR/bundles"
 FORCE_REFRESH=0
 AUTO_COMMIT=1
+SYNC_SOURCE_FALLBACK=0
 TEMP_PROBE_PATH="$(mktemp)"
 BUNDLE_INPUT_URL="$SITE_URL"
 
@@ -34,14 +37,14 @@ trap 'rm -f "$TEMP_PROBE_PATH"' EXIT
 commit_manifest_changes() {
   local manifest_changes=""
 
-  manifest_changes="$(git -C "$REPO_ROOT" status --short -- manifest "$SOURCE_FALLBACK_RELATIVE_PATH")"
+  manifest_changes="$(git -C "$REPO_ROOT" status --short -- "$MANIFEST_ARCHIVE_RELATIVE_PATH" "$SOURCE_FALLBACK_RELATIVE_PATH")"
   if [[ -z "$manifest_changes" ]]; then
     echo "[manifest] no manifest changes to commit"
     return 0
   fi
 
   printf '%s\n' "$manifest_changes"
-  git -C "$REPO_ROOT" add manifest "$SOURCE_FALLBACK_RELATIVE_PATH"
+  git -C "$REPO_ROOT" add "$MANIFEST_ARCHIVE_RELATIVE_PATH" "$SOURCE_FALLBACK_RELATIVE_PATH"
   git -C "$REPO_ROOT" commit -m "Refresh ToonLivre manifest"
   echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
   echo "[manifest] manifest commit created"
@@ -63,7 +66,7 @@ commit_bundle_snapshot_changes() {
 }
 
 run_extrator() {
-  env -C "$EXTRATOR_DIR" npm exec -- tsx src/cli.ts "$@"
+  env -C "$EXTRATOR_DIR" node dist/cli.js "$@"
 }
 
 while (($#)); do
@@ -84,6 +87,10 @@ while (($#)); do
       SITE_URL="$2"
       shift 2
       ;;
+    --sync-source-fallback)
+      SYNC_SOURCE_FALLBACK=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -95,6 +102,8 @@ while (($#)); do
       ;;
   esac
 done
+
+env -C "$EXTRATOR_DIR" npm run build >/dev/null
 
 if [[ ! -f "$MANIFEST_PATH" ]]; then
   echo "[manifest] no saved manifest found; generating a new one"
@@ -139,14 +148,22 @@ if [[ "$AUTO_COMMIT" == "1" ]]; then
   commit_bundle_snapshot_changes
 fi
 
-"$REPO_ROOT/scripts/extract-manifest.sh" "$BUNDLE_INPUT_URL"
+if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
+  "$REPO_ROOT/scripts/extract-manifest.sh" --sync-source-fallback "$BUNDLE_INPUT_URL"
+else
+  "$REPO_ROOT/scripts/extract-manifest.sh" "$BUNDLE_INPUT_URL"
+fi
 
 run_extrator validate \
   --manifest "$MANIFEST_PATH" >/dev/null
 
 echo "[manifest] refresh + validation completed"
 echo "[manifest] updated: $MANIFEST_PATH"
-echo "[manifest] updated: $SOURCE_FALLBACK_PATH"
+if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
+  echo "[manifest] updated: $SOURCE_FALLBACK_PATH"
+else
+  echo "[manifest] source fallback sync skipped"
+fi
 
 if [[ "$AUTO_COMMIT" == "1" ]]; then
   commit_manifest_changes

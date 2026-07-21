@@ -17,16 +17,21 @@ export function recognizeSessionSignals(
   ast: File,
   verifyFunctionName?: string
 ): SessionRecognition {
-  const cookieName = verifyFunctionName ? recognizeCookieName(ast, verifyFunctionName) : undefined;
-  const generator = cookieName ? recognizeCookieGenerator(ast, cookieName) : undefined;
+  const preferredCookieName = verifyFunctionName
+    ? recognizeCookieNameFromVerifyFunction(ast, verifyFunctionName)
+    : undefined;
+  const recognizedCookie = recognizeCookieWriteAndGenerator(ast, preferredCookieName);
 
   return {
-    cookieName,
-    generator,
+    cookieName: recognizedCookie?.cookieName ?? preferredCookieName,
+    generator: recognizedCookie?.generator,
   };
 }
 
-function recognizeCookieName(ast: File, verifyFunctionName: string): string | undefined {
+function recognizeCookieNameFromVerifyFunction(
+  ast: File,
+  verifyFunctionName: string
+): string | undefined {
   let cookieName: string | undefined;
 
   traverse(ast, {
@@ -86,7 +91,6 @@ function extractCookieNameFromFunction(path: NodePath<t.Function>): string | und
   }
 
   const candidateCall = valuePath.isLogicalExpression() ? valuePath.get('left') : valuePath;
-
   if (!candidateCall.isCallExpression()) {
     return undefined;
   }
@@ -97,38 +101,60 @@ function extractCookieNameFromFunction(path: NodePath<t.Function>): string | und
     : undefined;
 }
 
-function recognizeCookieGenerator(
+function recognizeCookieWriteAndGenerator(
   ast: File,
-  cookieName: string
-): SessionCookieGenerator | undefined {
-  let generator: SessionCookieGenerator | undefined;
+  preferredCookieName?: string
+):
+  | {
+      cookieName: string;
+      generator: SessionCookieGenerator;
+    }
+  | undefined {
+  let recognition:
+    | {
+        cookieName: string;
+        generator: SessionCookieGenerator;
+      }
+    | undefined;
 
   traverse(ast, {
     Function(functionPath) {
-      const cookieWrite = findCookieWrite(functionPath, cookieName);
+      const cookieWrite = findCookieWrite(functionPath, preferredCookieName);
       if (!cookieWrite) {
         return;
       }
 
-      generator = findCookieGenerator(functionPath, cookieWrite.variableName);
-      if (generator) {
-        functionPath.stop();
+      const generator = findCookieGenerator(functionPath, cookieWrite.variableName);
+      if (!generator) {
+        return;
       }
+
+      recognition = {
+        cookieName: cookieWrite.cookieName,
+        generator,
+      };
+      functionPath.stop();
     },
   });
 
-  return generator;
+  return recognition;
 }
 
 function findCookieWrite(
   functionPath: NodePath<t.Function>,
-  cookieName: string
+  preferredCookieName?: string
 ):
   | {
+      cookieName: string;
       variableName: string;
     }
   | undefined {
-  let result: { variableName: string } | undefined;
+  let result:
+    | {
+        cookieName: string;
+        variableName: string;
+      }
+    | undefined;
 
   functionPath.traverse({
     Function(innerPath) {
@@ -141,12 +167,12 @@ function findCookieWrite(
         return;
       }
 
-      const variableName = extractCookieVariableName(path.get('right'), cookieName);
-      if (!variableName) {
+      const cookieWrite = extractCookieWrite(path.get('right'), preferredCookieName);
+      if (!cookieWrite) {
         return;
       }
 
-      result = { variableName };
+      result = cookieWrite;
       path.stop();
     },
   });
@@ -217,23 +243,40 @@ function isDocumentCookieAssignment(node: t.Node): boolean {
   );
 }
 
-function extractCookieVariableName(
+function extractCookieWrite(
   valuePath: NodePath<t.Node>,
-  cookieName: string
-): string | undefined {
-  if (valuePath.isTemplateLiteral()) {
-    const [firstQuasi] = valuePath.node.quasis;
-    const [firstExpression] = valuePath.get('expressions');
-    if (!firstQuasi || !firstExpression || Array.isArray(firstExpression)) {
-      return undefined;
+  preferredCookieName?: string
+):
+  | {
+      cookieName: string;
+      variableName: string;
     }
-
-    if (firstQuasi.value.cooked?.startsWith(`${cookieName}=`) && firstExpression.isIdentifier()) {
-      return firstExpression.node.name;
-    }
+  | undefined {
+  if (!valuePath.isTemplateLiteral()) {
+    return undefined;
   }
 
-  return undefined;
+  const [firstQuasi] = valuePath.node.quasis;
+  const [firstExpression] = valuePath.get('expressions');
+  if (!firstQuasi || !firstExpression || Array.isArray(firstExpression)) {
+    return undefined;
+  }
+
+  const prefix = firstQuasi.value.cooked ?? '';
+  const match = prefix.match(/^([^=]+)=/u);
+  if (!match || !firstExpression.isIdentifier()) {
+    return undefined;
+  }
+
+  const cookieName = match[1];
+  if (!cookieName || (preferredCookieName && cookieName !== preferredCookieName)) {
+    return undefined;
+  }
+
+  return {
+    cookieName,
+    variableName: firstExpression.node.name,
+  };
 }
 
 function extractRandomSegments(

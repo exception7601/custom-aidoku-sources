@@ -94,7 +94,7 @@ describe('validate error formatting', () => {
     expect(message).toContain('Request signature: x-toon-signature=t8v_authX9');
     expect(message).toContain('Token mirror: x-toon-verify + cookie toon_v');
     expect(message).toContain('ratelimit-remaining=0');
-    expect(message).toContain('Confira `x-toon-signature`, `x-toon-verify` e o cookie `toon_v`.');
+    expect(message).toContain('Confira `x-toon-signature`, `x-toon-verify`, cookie `toon_v`.');
   });
 
   it('formats payload failures with decrypt hints', () => {

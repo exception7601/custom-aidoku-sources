@@ -10,7 +10,7 @@ const tsConfigs = tseslint.configs.recommended.map((config) => ({
 
 export default [
   {
-    ignores: ['dist/**', 'coverage/**', 'tests/fixtures/**/*.js'],
+    ignores: ['bundles/**', 'dist/**', 'coverage/**', 'tests/fixtures/**/*.js'],
   },
   js.configs.recommended,
   ...tsConfigs,

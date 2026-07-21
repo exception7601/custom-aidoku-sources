@@ -6,6 +6,11 @@ import { resolve } from 'node:path';
 import { Command } from 'commander';
 
 import { DEFAULT_CANARY_CHAPTER_URL, DEFAULT_SITE_URL, DEFAULT_SOURCE_ID } from './constants.js';
+import {
+  buildCompatibilityFailureMessage,
+  checkArchivedManifestCompatibility,
+  checkBundleCompatibility,
+} from './compatibility.js';
 import { downloadBundle } from './download-bundle.js';
 import { extractManifest } from './extract.js';
 import { parseManifest } from './manifest.js';
@@ -99,6 +104,93 @@ export async function runCli(argv: string[]): Promise<void> {
       const validation = await validateManifestAgainstChapter(manifest, options.canaryChapterUrl);
 
       process.stdout.write(`${JSON.stringify(validation, null, 2)}\n`);
+    });
+
+  program
+    .command('compat')
+    .description('Compare saved bundle snapshots against archived manifests.')
+    .option('--bundle-file <path>', 'Check one bundle file instead of the whole archive set')
+    .option('--manifest <path>', 'Expected manifest for `--bundle-file`')
+    .option('--manifest-dir <path>', 'Directory containing archived per-bundle manifests')
+    .option('--bundles-dir <path>', 'Directory containing saved bundle snapshots')
+    .option('--site-url <siteUrl>', 'Base site URL', DEFAULT_SITE_URL)
+    .option('--source-id <sourceId>', 'Manifest source identifier', DEFAULT_SOURCE_ID)
+    .option('--entry-url <entryUrl>', 'Entry URL to stamp on extracted manifests when needed')
+    .action(async (options) => {
+      if (options.bundleFile) {
+        const result = await checkBundleCompatibility({
+          bundleFile: options.bundleFile,
+          manifestPath: options.manifest,
+          manifestDir: options.manifestDir,
+          sourceId: options.sourceId,
+          siteUrl: options.siteUrl,
+          entryUrl: options.entryUrl,
+        });
+
+        if (!result.ok) {
+          throw new Error(
+            buildCompatibilityFailureMessage({
+              bundleFile: result.bundleFile,
+              manifestPath: result.expectedManifestPath,
+              actual: result.actual,
+              expected: result.expected,
+            })
+          );
+        }
+
+        process.stdout.write(
+          `${JSON.stringify(
+            {
+              ok: true,
+              bundleFile: result.bundleFile,
+              expectedManifestPath: result.expectedManifestPath,
+              bundleHash: result.bundleHash,
+            },
+            null,
+            2
+          )}\n`
+        );
+        return;
+      }
+
+      const results = await checkArchivedManifestCompatibility({
+        manifestDir: options.manifestDir,
+        bundlesDir: options.bundlesDir,
+        sourceId: options.sourceId,
+        siteUrl: options.siteUrl,
+      });
+      const failed = results.filter((result) => !result.ok);
+
+      if (failed.length > 0) {
+        throw new Error(
+          failed
+            .map((result) =>
+              buildCompatibilityFailureMessage({
+                bundleFile: result.bundleFile,
+                manifestPath: result.manifestPath,
+                actual: result.actual,
+                expected: result.expected,
+              })
+            )
+            .join('\n\n')
+        );
+      }
+
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            ok: true,
+            checked: results.length,
+            manifests: results.map((result) => ({
+              manifestPath: result.manifestPath,
+              bundleFile: result.bundleFile,
+              bundleHash: result.bundleHash,
+            })),
+          },
+          null,
+          2
+        )}\n`
+      );
     });
 
   program

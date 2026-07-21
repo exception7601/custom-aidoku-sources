@@ -52,4 +52,4 @@ rm -rf "$repo_root/public"
   aidoku build sources/*/package.aix --name "Aidoku Custom Sources"
 )
 
-cp "$repo_root/manifest/manifest.json" "$repo_root/public/manifest.json"
+cp "$repo_root/sources/pt_BR.toonlivre/res/manifest.json" "$repo_root/public/manifest.json"

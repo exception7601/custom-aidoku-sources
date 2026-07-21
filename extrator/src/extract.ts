@@ -39,6 +39,9 @@ interface CandidateRecognition {
   candidate: BundleCandidate;
   score: number;
   manifest?: ExtractedManifest;
+  request: ReturnType<typeof recognizeRequestSignals>;
+  session: ReturnType<typeof recognizeSessionSignals>;
+  decrypt: ReturnType<typeof recognizeDecryptSignals>;
 }
 
 export function classifyBundleUrlInputs(
@@ -78,8 +81,7 @@ export function isBaseSiteUrl(inputUrl: string, siteUrl: string): boolean {
 }
 
 export async function extractManifest(options: ExtractManifestOptions): Promise<ExtractedManifest> {
-  const { candidates, discoveredScriptUrls, resolvedEntryUrl } =
-    await loadBundleCandidates(options);
+  const { candidates, discoveredScriptUrls, resolvedEntryUrl } = await loadBundleCandidates(options);
   if (candidates.length === 0) {
     throw new Error('No bundle candidates were loaded.');
   }
@@ -94,9 +96,7 @@ export async function extractManifest(options: ExtractManifestOptions): Promise<
   const bestRecognition = recognitions.sort((left, right) => right.score - left.score)[0];
 
   if (!bestRecognition || !bestRecognition.manifest) {
-    throw new Error(
-      'Unable to extract a complete manifest. Try passing `--bundle-url` with the live app bundle.'
-    );
+    throw new Error(buildIncompleteManifestError(bestRecognition));
   }
 
   return bestRecognition.manifest;
@@ -133,10 +133,7 @@ async function loadBundleCandidates(options: ExtractManifestOptions): Promise<{
   }
 
   const discoveryEntryUrls = Array.from(
-    new Set([
-      ...(options.entryUrl ? [options.entryUrl] : []),
-      ...classifiedBundleUrls.discoveryEntryUrls,
-    ])
+    new Set([...(options.entryUrl ? [options.entryUrl] : []), ...classifiedBundleUrls.discoveryEntryUrls])
   );
 
   if (candidates.length > 0 && discoveryEntryUrls.length === 0) {
@@ -197,7 +194,6 @@ function buildRecognition(
   const complete =
     request.signatureHeader &&
     (request.signatureRules.length > 0 || request.signatureStrategy) &&
-    request.verifyHeader &&
     request.dataKeyHeader &&
     session.cookieName &&
     session.generator &&
@@ -206,7 +202,7 @@ function buildRecognition(
 
   const score =
     (request.signatureHeader ? 2 : 0) +
-    (request.signatureRules.length > 0 ? 2 : 0) +
+    (request.signatureRules.length > 0 || request.signatureStrategy ? 2 : 0) +
     (request.verifyHeader ? 1 : 0) +
     (request.dataKeyHeader ? 1 : 0) +
     (session.cookieName ? 2 : 0) +
@@ -218,6 +214,9 @@ function buildRecognition(
     return {
       candidate,
       score,
+      request,
+      session,
+      decrypt,
     };
   }
 
@@ -243,7 +242,7 @@ function buildRecognition(
       sessionCookie: {
         name: session.cookieName,
         generator: session.generator,
-        mirrorsInto: [request.verifyHeader],
+        mirrorsInto: request.verifyHeader ? [request.verifyHeader] : [],
       },
     },
     decrypt: {
@@ -266,7 +265,62 @@ function buildRecognition(
     candidate,
     score,
     manifest,
+    request,
+    session,
+    decrypt,
   };
+}
+
+function buildIncompleteManifestError(recognition: CandidateRecognition | undefined): string {
+  if (!recognition) {
+    return 'Unable to extract a complete manifest because no bundle recognition candidates were scored.';
+  }
+
+  const missing: string[] = [];
+  if (!recognition.request.signatureHeader) {
+    missing.push('request.signatureHeader');
+  }
+  if (
+    recognition.request.signatureRules.length === 0 &&
+    recognition.request.signatureStrategy === undefined
+  ) {
+    missing.push('request.signatureRules|signatureStrategy');
+  }
+  if (!recognition.request.dataKeyHeader) {
+    missing.push('decrypt.dataKeyHeader');
+  }
+  if (!recognition.session.cookieName) {
+    missing.push('request.sessionCookie.name');
+  }
+  if (!recognition.session.generator) {
+    missing.push('request.sessionCookie.generator');
+  }
+  if (!recognition.decrypt.algorithm) {
+    missing.push('decrypt.algorithm');
+  }
+  if (!recognition.decrypt.passphrase) {
+    missing.push('decrypt.passphrase');
+  }
+
+  const recognized = [
+    `candidate=${recognition.candidate.location}`,
+    `signatureHeader=${recognition.request.signatureHeader ?? 'missing'}`,
+    `signatureRules=${recognition.request.signatureRules.length}`,
+    `signatureStrategy=${recognition.request.signatureStrategy?.kind ?? 'missing'}`,
+    `verifyHeader=${recognition.request.verifyHeader ?? 'missing'}`,
+    `cookieName=${recognition.session.cookieName ?? 'missing'}`,
+    `cookieGenerator=${recognition.session.generator?.kind ?? 'missing'}`,
+    `dataKeyHeader=${recognition.request.dataKeyHeader ?? 'missing'}`,
+    `decryptAlgorithm=${recognition.decrypt.algorithm ?? 'missing'}`,
+    `passphrase=${recognition.decrypt.passphrase?.kind ?? 'missing'}`,
+  ];
+
+  return [
+    'Unable to extract a complete manifest from the best-scoring bundle candidate.',
+    `Missing: ${missing.join(', ') || 'unknown'}`,
+    `Recognized: ${recognized.join(', ')}`,
+    'If this is the live site, inspect the saved `analysis.json` and extend the relevant recognizer.',
+  ].join('\n');
 }
 
 function normalizePath(pathname: string): string {

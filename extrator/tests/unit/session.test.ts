@@ -26,4 +26,26 @@ describe('session recognizer', () => {
       ],
     });
   });
+
+  it('extracts the cookie generator even when no verify header exists', async () => {
+    const bundle = await readFixture('toonlivre-bundle-seed-snippet.js');
+    const recognition = recognizeSessionSignals(parseBundle(bundle));
+
+    expect(recognition.cookieName).toBe('toon_v');
+    expect(recognition.generator).toEqual({
+      kind: 'random-base36-concat',
+      segments: [
+        {
+          radix: 36,
+          start: 2,
+          end: 15,
+        },
+        {
+          radix: 36,
+          start: 2,
+          end: 15,
+        },
+      ],
+    });
+  });
 });

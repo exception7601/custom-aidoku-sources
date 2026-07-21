@@ -67,4 +67,20 @@ describe('request recognizer', () => {
     expect(recognition.verifyHeader).toBe('x-toon-verify');
     expect(recognition.dataKeyHeader).toBe('x-toon-datakey');
   });
+
+  it('recognizes the seed-backed signature strategy', async () => {
+    const bundle = await readFixture('toonlivre-bundle-seed-snippet.js');
+    const recognition = recognizeRequestSignals(parseBundle(bundle));
+
+    expect(recognition.signatureHeader).toBe('x-toon-signature');
+    expect(recognition.signatureRules).toEqual([]);
+    expect(recognition.signatureStrategy).toEqual({
+      kind: 'seed-jwt',
+      metaName: 't-seed',
+      endpointPath: '/api/seed',
+      tokenField: 'token',
+    });
+    expect(recognition.verifyHeader).toBeUndefined();
+    expect(recognition.dataKeyHeader).toBe('x-toon-datakey');
+  });
 });

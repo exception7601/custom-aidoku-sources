@@ -40,7 +40,7 @@ export async function validateManifestAgainstChapter(
   manifest: ExtractedManifest,
   chapterApiUrl: string
 ): Promise<CanaryValidationResult> {
-  const requestContext = buildRequestContext(manifest, chapterApiUrl);
+  const requestContext = await buildRequestContext(manifest, chapterApiUrl);
   requestContext.headers.set('origin', manifest.siteUrl);
   requestContext.headers.set('referer', manifest.siteUrl);
   requestContext.headers.set('cookie', requestContext.cookieHeader);
@@ -125,11 +125,11 @@ export function buildCanaryRequestFailureMessage({
     `Status: ${status} ${describeHttpStatus(status)}`,
     `Bundle: ${manifest.bundle.url ?? manifest.entryUrl ?? manifest.siteUrl}`,
     `Request signature: ${manifest.request.signatureHeader}=${signatureValue}`,
-    `Token mirror: ${manifest.request.verifyHeader} + cookie ${manifest.request.sessionCookie.name}`,
+    `Token mirror: ${describeTokenMirror(manifest)}`,
   ];
   const responseHeaderSummary = summarizeHeaders(responseHeaders);
   const apiError = extractApiError(body);
-  const hint = buildRequestHint(status, responseHeaders, body);
+  const hint = buildRequestHint(status, responseHeaders, body, manifest);
   const bodySnippet = summarizeBody(body);
 
   if (responseHeaderSummary) {
@@ -184,13 +184,19 @@ export function buildCanaryPayloadFailureMessage({
 function buildRequestHint(
   status: number,
   responseHeaders: Headers,
-  body: string
+  body: string,
+  manifest: ExtractedManifest
 ): string | undefined {
   if (status === 403) {
-    return (
-      'O endpoint de capítulo rejeitou o token espelhado ou a assinatura do manifesto. ' +
-      'Confira `x-toon-signature`, `x-toon-verify` e o cookie `toon_v`.'
-    );
+    const pieces = [`\`${manifest.request.signatureHeader}\``];
+
+    if (manifest.request.verifyHeader) {
+      pieces.push(`\`${manifest.request.verifyHeader}\``);
+    }
+
+    pieces.push(`cookie \`${manifest.request.sessionCookie.name}\``);
+
+    return `O endpoint de capítulo rejeitou a assinatura do manifesto ou a semente/token dinâmico. Confira ${pieces.join(', ')}.`;
   }
 
   if (status === 429) {
@@ -284,6 +290,24 @@ function describeHttpStatus(status: number): string {
     default:
       return 'Unexpected Response';
   }
+}
+
+function describeTokenMirror(manifest: ExtractedManifest): string {
+  const parts: string[] = [];
+
+  if (manifest.request.verifyHeader) {
+    parts.push(manifest.request.verifyHeader);
+  }
+
+  for (const headerName of manifest.request.sessionCookie.mirrorsInto) {
+    if (!parts.includes(headerName)) {
+      parts.push(headerName);
+    }
+  }
+
+  parts.push(`cookie ${manifest.request.sessionCookie.name}`);
+
+  return parts.join(' + ');
 }
 
 function toErrorMessage(error: unknown): string {

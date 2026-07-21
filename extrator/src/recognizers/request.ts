@@ -133,7 +133,7 @@ export function recognizeRequestSignals(ast: File): RequestRecognition {
     if (operation.headerName.includes('signature')) {
       recognition.signatureHeader = operation.headerName;
       recognition.signatureRules = extractSignatureRules(operation.valuePath);
-      recognition.signatureStrategy = extractDynamicSignatureStrategy(operation.valuePath);
+      recognition.signatureStrategy = extractSignatureStrategy(operation.valuePath);
       continue;
     }
 
@@ -161,7 +161,7 @@ function resolveMethodName(path: NodePath<t.MemberExpression>): string | undefin
 }
 
 function extractSignatureRules(valuePath: NodePath<t.Node>): SignatureRule[] {
-  const unwrapped = unwrapValuePath(valuePath);
+  const unwrapped = unwrapRuntimeValuePath(valuePath);
 
   if (unwrapped.isConditionalExpression()) {
     const consequent = evaluateStatic(unwrapped.get('consequent'));
@@ -197,10 +197,16 @@ function extractSignatureRules(valuePath: NodePath<t.Node>): SignatureRule[] {
     : [];
 }
 
-function extractDynamicSignatureStrategy(
+function extractSignatureStrategy(
   valuePath: NodePath<t.Node>
 ): DynamicSignatureStrategy | undefined {
-  const signatureCallPath = unwrapValuePath(valuePath);
+  return extractTimeSha256SignatureStrategy(valuePath) ?? extractSeedJwtSignatureStrategy(valuePath);
+}
+
+function extractTimeSha256SignatureStrategy(
+  valuePath: NodePath<t.Node>
+): Extract<DynamicSignatureStrategy, { kind: 'time-sha256-base64' }> | undefined {
+  const signatureCallPath = unwrapRuntimeValuePath(valuePath);
   if (!signatureCallPath.isCallExpression()) {
     return undefined;
   }
@@ -230,7 +236,7 @@ function extractDynamicSignatureStrategy(
     return undefined;
   }
 
-  const digestBindingPath = unwrapValuePath(digestExpressionPath);
+  const digestBindingPath = unwrapRuntimeValuePath(digestExpressionPath);
   if (!digestBindingPath.isCallExpression()) {
     return undefined;
   }
@@ -283,7 +289,7 @@ function extractDynamicSignatureStrategy(
     return undefined;
   }
 
-  const payloadBindingPath = unwrapValuePath(payloadArgumentPath);
+  const payloadBindingPath = unwrapRuntimeValuePath(payloadArgumentPath);
   if (!payloadBindingPath.isTemplateLiteral()) {
     return undefined;
   }
@@ -309,8 +315,85 @@ function extractDynamicSignatureStrategy(
   };
 }
 
+function extractSeedJwtSignatureStrategy(
+  valuePath: NodePath<t.Node>
+): Extract<DynamicSignatureStrategy, { kind: 'seed-jwt' }> | undefined {
+  const signatureCallPath = unwrapRuntimeValuePath(valuePath);
+  if (!signatureCallPath.isCallExpression()) {
+    return undefined;
+  }
+
+  const calleePath = signatureCallPath.get('callee');
+  if (!calleePath.isIdentifier()) {
+    return undefined;
+  }
+
+  const binding = calleePath.scope.getBinding(calleePath.node.name);
+  if (!binding) {
+    return undefined;
+  }
+
+  const functionPath = resolveFunctionPath(binding.path);
+  if (!functionPath) {
+    return undefined;
+  }
+
+  let metaName: string | undefined;
+  let endpointPath: string | undefined;
+  let tokenField: string | undefined;
+
+  functionPath.traverse({
+    Function(innerPath) {
+      if (innerPath !== functionPath) {
+        innerPath.skip();
+      }
+    },
+    StringLiteral(path) {
+      if (!metaName) {
+        const match = path.node.value.match(/^meta\[name=["']([^"']+)["']\]$/u);
+        if (match) {
+          metaName = match[1];
+        }
+      }
+
+      if (!endpointPath && path.node.value.startsWith('/api/')) {
+        endpointPath = path.node.value;
+      }
+    },
+    OptionalMemberExpression(path) {
+      if (path.node.computed) {
+        return;
+      }
+
+      if (t.isIdentifier(path.node.property) && path.node.property.name === 'token') {
+        tokenField ??= path.node.property.name;
+      }
+    },
+    MemberExpression(path) {
+      if (path.node.computed) {
+        return;
+      }
+
+      if (t.isIdentifier(path.node.property) && path.node.property.name === 'token') {
+        tokenField ??= path.node.property.name;
+      }
+    },
+  });
+
+  if (!metaName || !endpointPath) {
+    return undefined;
+  }
+
+  return {
+    kind: 'seed-jwt',
+    metaName,
+    endpointPath,
+    tokenField: tokenField ?? 'token',
+  };
+}
+
 function extractTimestampDivisor(path: NodePath<t.Node>): number | undefined {
-  const bindingPath = unwrapValuePath(path);
+  const bindingPath = unwrapRuntimeValuePath(path);
   if (!bindingPath.isCallExpression()) {
     return undefined;
   }
@@ -362,8 +445,10 @@ function extractTimestampDivisor(path: NodePath<t.Node>): number | undefined {
   return typeof divisorValue === 'number' ? divisorValue : undefined;
 }
 
-function extractRouteSelector(path: NodePath<t.Node>): DynamicSignatureStrategy['routeSelector'] | undefined {
-  const bindingPath = unwrapValuePath(path);
+function extractRouteSelector(
+  path: NodePath<t.Node>
+): Extract<DynamicSignatureStrategy, { kind: 'time-sha256-base64' }>['routeSelector'] | undefined {
+  const bindingPath = unwrapRuntimeValuePath(path);
   if (!bindingPath.isConditionalExpression()) {
     return undefined;
   }
@@ -371,11 +456,7 @@ function extractRouteSelector(path: NodePath<t.Node>): DynamicSignatureStrategy[
   const whenMatched = evaluateStatic(bindingPath.get('consequent'));
   const otherwise = evaluateStatic(bindingPath.get('alternate'));
   const when = extractUrlCondition(bindingPath.get('test'));
-  if (
-    typeof whenMatched !== 'string' ||
-    typeof otherwise !== 'string' ||
-    when === undefined
-  ) {
+  if (typeof whenMatched !== 'string' || typeof otherwise !== 'string' || when === undefined) {
     return undefined;
   }
 
@@ -387,7 +468,7 @@ function extractRouteSelector(path: NodePath<t.Node>): DynamicSignatureStrategy[
 }
 
 function extractStaticString(path: NodePath<t.Node>): string | undefined {
-  const value = evaluateStatic(unwrapValuePath(path));
+  const value = evaluateStatic(unwrapRuntimeValuePath(path));
   return typeof value === 'string' ? value : undefined;
 }
 
@@ -415,7 +496,7 @@ function isDateNowCall(path: NodePath<t.Node>): boolean {
 }
 
 function extractVerifyFunctionName(valuePath: NodePath<t.Node>): string | undefined {
-  const unwrapped = unwrapValuePath(valuePath);
+  const unwrapped = unwrapRuntimeValuePath(valuePath);
   if (!unwrapped.isCallExpression()) {
     return undefined;
   }
@@ -424,12 +505,14 @@ function extractVerifyFunctionName(valuePath: NodePath<t.Node>): string | undefi
   return calleePath.isIdentifier() ? calleePath.node.name : undefined;
 }
 
-function extractUrlCondition(testPath: NodePath<t.Node>):
+function extractUrlCondition(
+  testPath: NodePath<t.Node>
+):
   | {
       urlContains: string;
     }
   | undefined {
-  const unwrapped = unwrapValuePath(testPath);
+  const unwrapped = unwrapRuntimeValuePath(testPath);
   if (!unwrapped.isCallExpression()) {
     return undefined;
   }
@@ -463,6 +546,20 @@ function extractUrlCondition(testPath: NodePath<t.Node>):
   return typeof includedValue === 'string' ? { urlContains: includedValue } : undefined;
 }
 
+function unwrapRuntimeValuePath(path: NodePath<t.Node>): NodePath<t.Node> {
+  let current = unwrapValuePath(path);
+
+  while (current.isAwaitExpression()) {
+    const argumentPath = current.get('argument');
+    if (Array.isArray(argumentPath)) {
+      break;
+    }
+    current = unwrapValuePath(argumentPath as NodePath<t.Node>);
+  }
+
+  return current;
+}
+
 function unwrapValuePath(path: NodePath<t.Node>): NodePath<t.Node> {
   if (!path.isIdentifier()) {
     return path;
@@ -479,4 +576,21 @@ function unwrapValuePath(path: NodePath<t.Node>): NodePath<t.Node> {
   }
 
   return initPath as NodePath<t.Node>;
+}
+
+function resolveFunctionPath(path: NodePath<t.Node>): NodePath<t.Function> | undefined {
+  if (path.isFunctionDeclaration()) {
+    return path;
+  }
+
+  if (path.isVariableDeclarator()) {
+    const initPath = path.get('init');
+    if (!initPath || Array.isArray(initPath) || !initPath.isFunction()) {
+      return undefined;
+    }
+
+    return initPath;
+  }
+
+  return undefined;
 }
