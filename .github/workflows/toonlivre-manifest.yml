@@ -1,6 +1,14 @@
 name: Refresh ToonLivre Manifest
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "extrator/src/**"
+      - "extrator/manifest/**"
+      - ".github/workflows/toonlivre-manifest.yml"
+
   workflow_dispatch:
     inputs:
       force:
