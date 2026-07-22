@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-22T12:06:14.000Z — `index-CTbxvntD.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CTbxvntD.js`
+- Saved folder: `bundle_v1784721974_index-CTbxvntD_js`
+- SHA-256: `8b95e51394f345e11aefaa98e12eff1b6ccd83be2c637c71196016b970a9d76b`
+- Bytes: `579348`
+- Previous bundle: `bundle_v1784699149_index-D3FYByYU_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-22T05:45:49.000Z — `index-D3FYByYU.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-D3FYByYU.js`
