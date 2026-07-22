@@ -44,4 +44,24 @@ describe('decrypt recognizer', () => {
       },
     });
   });
+
+  it('extracts an inline string + slice passphrase recipe from the live bundle pattern', async () => {
+    const bundle = await readFixture('toonlivre-bundle-seed-inline-passphrase-snippet.js');
+    const recognition = recognizeDecryptSignals(parseBundle(bundle));
+
+    expect(recognition.algorithm).toBe('cryptojs-rabbit');
+    expect(recognition.passphraseFunctionName).toBe('sv');
+    expect(recognition.passphrase).toEqual({
+      kind: 'utc-sha256-derived',
+      dateFormat: 'YYYY-MM-DD',
+      prefix: 'Celestial-Raven-Invoke9',
+      salt: 'toonlivre.net::v9p6_2x8_j',
+      suffix: '',
+      digestEncoding: 'hex',
+      digestSlice: {
+        start: 0,
+        end: 8,
+      },
+    });
+  });
 });

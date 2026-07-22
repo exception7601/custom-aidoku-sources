@@ -109,88 +109,62 @@ function extractPassphraseStrategy(
     return undefined;
   }
 
-  const splitLiteralByName = new Map<string, string>();
-  let digestVariableName: string | undefined;
-  let digestAlgorithm: 'MD5' | 'SHA256' | undefined;
-  let digestSlice: PassphraseStrategy['digestSlice'] | undefined;
-  let digestArgument: t.Node | undefined;
   let returnExpression: t.Node | undefined;
 
   for (const statementPath of bodyPath.get('body')) {
-    if (statementPath.isVariableDeclaration()) {
-      for (const declarationPath of statementPath.get('declarations')) {
-        if (!t.isIdentifier(declarationPath.node.id)) {
-          continue;
-        }
-
-        const name = declarationPath.node.id.name;
-        const initPath = declarationPath.get('init');
-        if (!initPath || Array.isArray(initPath)) {
-          continue;
-        }
-
-        const splitLiteral = extractSplitLiteral(initPath as NodePath<t.Node>);
-        if (splitLiteral !== undefined) {
-          splitLiteralByName.set(name, splitLiteral);
-          continue;
-        }
-
-        const digestMetadata = extractDigestMetadata(initPath as NodePath<t.Node>);
-        if (!digestMetadata) {
-          continue;
-        }
-
-        digestVariableName = name;
-        digestAlgorithm = digestMetadata.algorithm;
-        digestSlice = digestMetadata.digestSlice;
-        digestArgument = digestMetadata.digestArgument;
-      }
-
-      continue;
-    }
-
     if (statementPath.isReturnStatement()) {
       returnExpression = statementPath.node.argument ?? undefined;
+      break;
     }
   }
 
-  if (
-    !digestVariableName ||
-    !digestAlgorithm ||
-    !digestSlice ||
-    !digestArgument ||
-    !returnExpression
-  ) {
+  if (!returnExpression) {
     return undefined;
   }
 
   const returnParts = flattenPlusExpression(returnExpression);
-  const prefixVariableName = findJoinedVariableName(returnParts[0]);
-  const digestReturned = returnParts[1];
-  if (!prefixVariableName || !t.isIdentifier(digestReturned, { name: digestVariableName })) {
+  const digestReturned = returnParts.at(-1);
+  const prefixParts = returnParts.slice(0, -1);
+  if (!digestReturned || prefixParts.length === 0) {
     return undefined;
   }
 
-  const digestParts = flattenPlusExpression(resolveBoundExpression(functionPath.scope, digestArgument));
-  const saltVariableName = findJoinedVariableName(digestParts[1]);
-  const suffixVariableName = findJoinedVariableName(digestParts[2]);
-  if (!saltVariableName || !suffixVariableName) {
+  const prefixValues = prefixParts.map((part) => resolveStaticString(functionPath.scope, part));
+  if (prefixValues.some((value) => value === undefined)) {
     return undefined;
   }
 
+  const digestMetadata = extractDigestMetadata(
+    resolveBoundExpression(functionPath.scope, digestReturned)
+  );
+  if (!digestMetadata) {
+    return undefined;
+  }
+
+  const digestParts = flattenPlusExpression(
+    resolveBoundExpression(functionPath.scope, digestMetadata.digestArgument)
+  );
   const dateExpression = digestParts[0];
   if (!dateExpression || !isUtcDateTemplate(functionPath.scope, dateExpression)) {
     return undefined;
   }
 
-  const prefix = splitLiteralByName.get(prefixVariableName);
-  const salt = splitLiteralByName.get(saltVariableName);
-  const suffix = splitLiteralByName.get(suffixVariableName);
-  if (!prefix || !salt || !suffix) {
+  const literalParts = digestParts
+    .slice(1)
+    .map((part) => resolveStaticString(functionPath.scope, part));
+  if (literalParts.length === 0 || literalParts.some((value) => value === undefined)) {
     return undefined;
   }
 
-  if (digestAlgorithm === 'MD5') {
+  const [salt, ...suffixParts] = literalParts;
+  if (salt === undefined) {
+    return undefined;
+  }
+
+  const prefix = prefixValues.join('');
+  const suffix = suffixParts.join('');
+
+  if (digestMetadata.algorithm === 'MD5') {
     return {
       kind: 'utc-md5-derived',
       dateFormat: 'YYYY-MM-DD',
@@ -198,7 +172,7 @@ function extractPassphraseStrategy(
       salt,
       suffix,
       digestEncoding: 'hex',
-      digestSlice,
+      digestSlice: digestMetadata.digestSlice,
     };
   }
 
@@ -209,7 +183,7 @@ function extractPassphraseStrategy(
     salt,
     suffix,
     digestEncoding: 'hex',
-    digestSlice,
+    digestSlice: digestMetadata.digestSlice,
   };
 }
 
@@ -230,137 +204,153 @@ function resolveFunctionPath(path: NodePath<t.Node>): NodePath<t.Function> | und
   return undefined;
 }
 
-function extractSplitLiteral(path: NodePath<t.Node>): string | undefined {
-  if (!path.isCallExpression() || !path.get('callee').isMemberExpression()) {
+function resolveStaticString(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node
+): string | undefined {
+  const resolvedNode = resolveBoundExpression(scope, node);
+  const directLiteral = extractStringLiteral(resolvedNode);
+  if (directLiteral !== undefined) {
+    return directLiteral;
+  }
+
+  const splitLiteral = extractSplitLiteral(resolvedNode);
+  if (splitLiteral !== undefined) {
+    return splitLiteral;
+  }
+
+  if (t.isBinaryExpression(resolvedNode, { operator: '+' })) {
+    const parts = flattenPlusExpression(resolvedNode);
+    const values = parts.map((part) => resolveStaticString(scope, part));
+    if (values.some((value) => value === undefined)) {
+      return undefined;
+    }
+
+    return values.join('');
+  }
+
+  if (!t.isCallExpression(resolvedNode) || !t.isMemberExpression(resolvedNode.callee)) {
     return undefined;
   }
 
-  const callee = path.get('callee');
-  const objectPath = callee.get('object');
-  const propertyPath = callee.get('property');
-  const firstArgument = path.get('arguments.0');
-
   if (
-    Array.isArray(objectPath) ||
-    Array.isArray(propertyPath) ||
-    !objectPath.isStringLiteral() ||
-    !propertyPath.isIdentifier({ name: 'split' }) ||
-    !firstArgument ||
-    Array.isArray(firstArgument) ||
-    !firstArgument.isStringLiteral({ value: '' })
+    resolvedNode.callee.computed ||
+    !t.isIdentifier(resolvedNode.callee.property, { name: 'join' })
   ) {
     return undefined;
   }
 
-  return objectPath.node.value;
+  const [delimiter] = resolvedNode.arguments;
+  if (!t.isStringLiteral(delimiter, { value: '' })) {
+    return undefined;
+  }
+
+  return resolveStaticString(scope, resolvedNode.callee.object);
 }
 
-function extractDigestMetadata(path: NodePath<t.Node>):
+function extractStringLiteral(node: t.Node): string | undefined {
+  if (t.isStringLiteral(node)) {
+    return node.value;
+  }
+
+  if (t.isTemplateLiteral(node) && node.expressions.length === 0) {
+    return node.quasis.map((quasi) => quasi.value.cooked ?? '').join('');
+  }
+
+  return undefined;
+}
+
+function extractSplitLiteral(node: t.Node): string | undefined {
+  if (!t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
+    return undefined;
+  }
+
+  const [firstArgument] = node.arguments;
+  if (
+    node.callee.computed ||
+    !t.isStringLiteral(node.callee.object) ||
+    !t.isIdentifier(node.callee.property, { name: 'split' }) ||
+    !t.isStringLiteral(firstArgument, { value: '' })
+  ) {
+    return undefined;
+  }
+
+  return node.callee.object.value;
+}
+
+function extractDigestMetadata(node: t.Node):
   | {
       algorithm: 'MD5' | 'SHA256';
       digestSlice: PassphraseStrategy['digestSlice'];
       digestArgument: t.Node;
     }
   | undefined {
-  if (!path.isCallExpression() || !path.get('callee').isMemberExpression()) {
+  if (!t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
     return undefined;
   }
 
-  const substringCallee = path.get('callee');
-  const substringProperty = substringCallee.get('property');
-  if (Array.isArray(substringProperty) || !substringProperty.isIdentifier({ name: 'substring' })) {
+  const digestSliceProperty =
+    !node.callee.computed && t.isIdentifier(node.callee.property)
+      ? node.callee.property.name
+      : undefined;
+  if (digestSliceProperty !== 'substring' && digestSliceProperty !== 'slice') {
     return undefined;
   }
 
-  const [startPath, endPath] = path.get('arguments');
+  const [startArgument, endArgument] = node.arguments;
+  if (!t.isNumericLiteral(startArgument) || !t.isNumericLiteral(endArgument)) {
+    return undefined;
+  }
+
+  const toStringCall = node.callee.object;
+  if (!t.isCallExpression(toStringCall) || !t.isMemberExpression(toStringCall.callee)) {
+    return undefined;
+  }
+
   if (
-    !startPath ||
-    !endPath ||
-    Array.isArray(startPath) ||
-    Array.isArray(endPath) ||
-    !startPath.isNumericLiteral() ||
-    !endPath.isNumericLiteral()
+    toStringCall.callee.computed ||
+    !t.isIdentifier(toStringCall.callee.property, { name: 'toString' })
   ) {
     return undefined;
   }
 
-  const toStringCallPath = substringCallee.get('object');
-  if (
-    Array.isArray(toStringCallPath) ||
-    !toStringCallPath.isCallExpression() ||
-    !toStringCallPath.get('callee').isMemberExpression()
-  ) {
-    return undefined;
-  }
-
-  const toStringCallee = toStringCallPath.get('callee');
-  const toStringProperty = toStringCallee.get('property');
-  if (Array.isArray(toStringProperty) || !toStringProperty.isIdentifier({ name: 'toString' })) {
-    return undefined;
-  }
-
-  const digestCallPath = toStringCallee.get('object');
-  if (!digestCallPath.isCallExpression() || !digestCallPath.get('callee').isMemberExpression()) {
-    return undefined;
-  }
-
-  const digestCallee = digestCallPath.get('callee');
-  const digestProperty = digestCallee.get('property');
-  if (Array.isArray(digestProperty) || !digestProperty.isIdentifier()) {
+  const digestCall = toStringCall.callee.object;
+  if (!t.isCallExpression(digestCall) || !t.isMemberExpression(digestCall.callee)) {
     return undefined;
   }
 
   const algorithm =
-    digestProperty.node.name === 'MD5' || digestProperty.node.name === 'SHA256'
-      ? digestProperty.node.name
+    !digestCall.callee.computed && t.isIdentifier(digestCall.callee.property)
+      ? digestCall.callee.property.name === 'MD5' || digestCall.callee.property.name === 'SHA256'
+        ? digestCall.callee.property.name
+        : undefined
       : undefined;
   if (!algorithm) {
     return undefined;
   }
 
-  const digestArgumentPath = digestCallPath.get('arguments.0');
-  if (!digestArgumentPath || Array.isArray(digestArgumentPath)) {
+  const [digestArgument] = digestCall.arguments;
+  if (!digestArgument || !t.isExpression(digestArgument)) {
     return undefined;
   }
 
   return {
     algorithm,
     digestSlice: {
-      start: startPath.node.value,
-      end: endPath.node.value,
+      start: startArgument.value,
+      end: endArgument.value,
     },
-    digestArgument: digestArgumentPath.node,
+    digestArgument,
   };
 }
 
-function findJoinedVariableName(node: t.Node | undefined): string | undefined {
-  if (!node || !t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
-    return undefined;
-  }
-
-  if (node.callee.computed || !t.isIdentifier(node.callee.property, { name: 'join' })) {
-    return undefined;
-  }
-
-  return t.isIdentifier(node.callee.object) ? node.callee.object.name : undefined;
-}
-
 function isUtcDateTemplate(scope: NodePath<t.Function>['scope'], node: t.Node): boolean {
-  if (!t.isIdentifier(node)) {
+  const resolvedNode = resolveBoundExpression(scope, node);
+  if (!t.isTemplateLiteral(resolvedNode) || resolvedNode.expressions.length !== 3) {
     return false;
   }
 
-  const binding = scope.getBinding(node.name);
-  if (!binding || !binding.path.isVariableDeclarator()) {
-    return false;
-  }
-
-  const init = binding.path.node.init;
-  if (!t.isTemplateLiteral(init) || init.expressions.length !== 3) {
-    return false;
-  }
-
-  const [yearExpression, monthExpression, dayExpression] = init.expressions;
+  const [yearExpression, monthExpression, dayExpression] = resolvedNode.expressions;
   if (!yearExpression || !monthExpression || !dayExpression) {
     return false;
   }

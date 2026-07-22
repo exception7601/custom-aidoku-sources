@@ -51,8 +51,15 @@ liveDescribe('live ToonLivre extraction', () => {
     expect(manifest.request.sessionCookie.name).toBe('toon_v');
     expect(manifest.decrypt.passphrase).toMatchObject({
       kind: 'utc-sha256-derived',
-      prefix: 'Magnesium-Strike-Astonish3',
+      dateFormat: 'YYYY-MM-DD',
+      digestEncoding: 'hex',
+      digestSlice: {
+        start: 0,
+        end: 8,
+      },
     });
+    expect(manifest.decrypt.passphrase.prefix.length).toBeGreaterThan(0);
+    expect(manifest.decrypt.passphrase.salt.length).toBeGreaterThan(0);
     expect(validation.ok).toBe(true);
     expect(validation.pageCount).toBeGreaterThan(0);
     expect(Array.isArray(validation.decrypted.pages)).toBe(true);
