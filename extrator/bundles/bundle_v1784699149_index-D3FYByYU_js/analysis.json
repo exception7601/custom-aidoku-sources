@@ -1,0 +1,40 @@
+{
+  "request": {
+    "signatureRules": [],
+    "dataKeyHeader": "x-toon-datakey",
+    "signatureHeader": "x-toon-signature",
+    "signatureStrategy": {
+      "kind": "seed-jwt",
+      "metaName": "t-seed",
+      "endpointPath": "/api/seed",
+      "tokenField": "token"
+    }
+  },
+  "session": {
+    "cookieName": "toon_v",
+    "generator": {
+      "kind": "random-base36-concat",
+      "segments": [
+        {
+          "radix": 36,
+          "start": 2,
+          "end": 15
+        },
+        {
+          "radix": 36,
+          "start": 2,
+          "end": 15
+        }
+      ]
+    }
+  },
+  "decrypt": {
+    "algorithm": "cryptojs-rabbit",
+    "passphraseFunctionName": "sv"
+  },
+  "snippets": {
+    "request": "",
+    "session": "localStorage.setItem(\"toonlivre_user\",JSON.stringify(s.user))}catch(s){console.error(\"Failed to parse refresh response\",s)}return!0}return!1}catch{return!1}finally{No=null}})(),No),sv=()=>{const n=new Date,i=`${n.getUTCFullYear()}-${String(n.getUTCMonth()+1).padStart(2,\"0\")}-${String(n.getUTCDate()).padStart(2,\"0\")}`+\"toonlivre.net::v9p6_2x8_j\";return\"Celestial-Raven-Invoke9\"+Gi.SHA256(i).toString(Gi.enc.Hex).slice(0,8)};let bc=!1,kc=[];const Ec=n=>{if(n&&!n.isTrusted||bc)return;bc=!0;let s=$c(\"toon_v\");s||(s=Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15),document.cookie=`toon_v=${s}; path=/; max-age=31536000; SameSite=Lax`),kc.forEach(i=>i()),kc=[],typeof window<\"u\"&&[\"scroll\",\"mousemove\",\"touchstart\",\"click\",\"keydown\"].forEach(i=>window.removeEventListener(i,Ec))};typeof window<\"u\"&&([\"scroll\",\"mousemove\",\"touchstart\",\"click\",\"keydown\"].forEach(n=>window.addEventListener(n,Ec,{passive:!0})),setTimeout(Ec,3500));const iv=async()=>{if(!(bc||$c(\"to",
+    "decrypt": "t iv();const l=async A=>{const y=String(A.method||\"GET\").toUpperCase(),F=new Headers(A.headers||{});if(F.append(\"x-toon-signature\",await lv()),y!==\"GET\"&&y!==\"HEAD\"&&y!==\"OPTIONS\"){const S=Tm();S&&F.set(\"x-csrf-token\",S)}return F},u=av(i),f=!!s.__retried,g=!!(Tm()||typeof window<\"u\"&&window.localStorage?.getItem(\"toonlivre_user\")),v=async(A,y)=>{const F=await l(y);return fetch(A,{...y,headers:F,credentials:\"include\"})},w=n instanceof Request?n.clone():n;let m=await v(w,s);const x=m.headers.get(\"x-toon-datakey\");if(x&&m.ok)try{const y=await m.clone().json();if(y&&y[x]){const F=sv(),S=Gi.Rabbit.decrypt(y[x],F).toString(Gi.enc.Utf8),N=JSON.parse(S);m=new Response(JSON.stringify(N),{status:m.status,statusText:m.statusText,headers:m.headers})}}catch(A){console.error(\"Falha ao descriptografar pacote Rabbit\",A)}if(await Pm(m),m.status!==401||u||f||i.includes(\"/api/auth/me\")&&!g||!await ov())return m;const k={...s,__retried:!0},_=n instanceof Request?n.clone():n,C=await v(_,k);return await Pm("
+  }
+}

@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-22T05:45:49.000Z — `index-D3FYByYU.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-D3FYByYU.js`
+- Saved folder: `bundle_v1784699149_index-D3FYByYU_js`
+- SHA-256: `2e7e188e81c6c386a5024831725c8cf9d10b0d717192be8ae8199963a99dbdf6`
+- Bytes: `579421`
+- Previous bundle: `bundle_v1784634648_index-CMe0Aw9p_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-21T11:50:48.000Z — `index-CMe0Aw9p.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CMe0Aw9p.js`
