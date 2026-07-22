@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+
 use aidoku::prelude::*;
 use aidoku::{
 	alloc::{String, Vec, format, vec},
@@ -30,9 +32,9 @@ const FALLBACK_COOKIE_NAME: &str = "toon_v";
 const FALLBACK_SEED_META_NAME: &str = "t-seed";
 const FALLBACK_SEED_ENDPOINT_PATH: &str = "/api/seed";
 const FALLBACK_SEED_TOKEN_FIELD: &str = "token";
-const FALLBACK_DECRYPTION_PREFIX: &str = "Magnesium-Strike-Astonish3";
-const FALLBACK_DECRYPTION_SALT: &str = "toonlivre.com::v8";
-const FALLBACK_DECRYPTION_SUFFIX: &str = "t8_4v2_b";
+const FALLBACK_DECRYPTION_PREFIX: &str = "Phantom-Tide-Harvest8";
+const FALLBACK_DECRYPTION_SALT: &str = "toonlivre.net::w3";
+const FALLBACK_DECRYPTION_SUFFIX: &str = "r7_5m2_k";
 const SEED_TOKEN_EXPIRY_MARGIN_MS: i64 = 120_000;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -41,8 +43,21 @@ pub(crate) struct ClientManifest {
 	pub schema_version: i64,
 	pub source_id: String,
 	pub site_url: String,
+	#[serde(default)]
+	pub extracted_at: Option<String>,
+	#[serde(default)]
+	pub bundle: Option<ManifestBundleMetadata>,
 	pub request: ManifestRequest,
 	pub decrypt: DecryptManifest,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ManifestBundleMetadata {
+	#[serde(default)]
+	pub url: Option<String>,
+	#[serde(default)]
+	pub hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -190,6 +205,42 @@ struct FetchedRemoteManifest {
 	fetched_at: i64,
 }
 
+fn should_prefer_remote_manifest(remote: &ClientManifest, bundled: &ClientManifest) -> bool {
+	let remote_score = manifest_capability_score(remote);
+	let bundled_score = manifest_capability_score(bundled);
+	if remote_score != bundled_score {
+		return remote_score > bundled_score;
+	}
+
+	compare_manifest_recency(remote, bundled) != Ordering::Less
+}
+
+fn compare_manifest_recency(left: &ClientManifest, right: &ClientManifest) -> Ordering {
+	compare_optional_text(left.extracted_at.as_deref(), right.extracted_at.as_deref())
+		.then_with(|| {
+			compare_optional_text(manifest_bundle_hash(left), manifest_bundle_hash(right))
+		})
+		.then_with(|| compare_optional_text(manifest_bundle_url(left), manifest_bundle_url(right)))
+}
+
+fn manifest_bundle_hash(manifest: &ClientManifest) -> Option<&str> {
+	manifest
+		.bundle
+		.as_ref()
+		.and_then(|bundle| bundle.hash.as_deref())
+}
+
+fn manifest_bundle_url(manifest: &ClientManifest) -> Option<&str> {
+	manifest
+		.bundle
+		.as_ref()
+		.and_then(|bundle| bundle.url.as_deref())
+}
+
+fn compare_optional_text(left: Option<&str>, right: Option<&str>) -> Ordering {
+	left.cmp(&right)
+}
+
 pub(crate) fn active_manifest() -> ClientManifest {
 	let bundled = bundled_manifest();
 	let bundled_score = manifest_capability_score(&bundled);
@@ -201,7 +252,7 @@ pub(crate) fn active_manifest() -> ClientManifest {
 		let cache_age_seconds = now.saturating_sub(cached.fetched_at);
 
 		if remote_manifest_cache_is_fresh(cached.fetched_at, now) {
-			if remote_score >= bundled_score {
+			if should_prefer_remote_manifest(&cached.manifest, &bundled) {
 				source_log!(
 					"[toonlivre] active_manifest source=cached_remote remote_score={} bundled_score={} cache_age_seconds={}",
 					remote_score,
@@ -232,7 +283,7 @@ pub(crate) fn active_manifest() -> ClientManifest {
 		let remote_score = manifest_capability_score(&remote.manifest);
 		cache_remote_manifest(&remote);
 
-		if remote_score >= bundled_score {
+		if should_prefer_remote_manifest(&remote.manifest, &bundled) {
 			source_log!(
 				"[toonlivre] active_manifest source=remote remote_score={} bundled_score={} cache_ttl_seconds={}",
 				remote_score,
@@ -255,7 +306,7 @@ pub(crate) fn active_manifest() -> ClientManifest {
 		let remote_score = manifest_capability_score(&cached.manifest);
 		let cache_age_seconds = now.saturating_sub(cached.fetched_at);
 
-		if remote_score >= bundled_score {
+		if should_prefer_remote_manifest(&cached.manifest, &bundled) {
 			source_log!(
 				"[toonlivre] active_manifest source=stale_cached_remote remote_score={} bundled_score={} cache_age_seconds={}",
 				remote_score,
@@ -551,6 +602,8 @@ fn default_manifest() -> ClientManifest {
 		schema_version: 1,
 		source_id: String::from(MANIFEST_SOURCE_ID),
 		site_url: String::from(BASE_URL),
+		extracted_at: None,
+		bundle: None,
 		request: ManifestRequest {
 			user_agent: String::from(FALLBACK_USER_AGENT),
 			accept_language: String::from(ACCEPT_LANGUAGE),
@@ -933,5 +986,61 @@ mod manifest_tests {
 	fn remote_manifest_cache_window_is_one_hour() {
 		assert!(remote_manifest_cache_is_fresh(1_000, 4_600));
 		assert!(!remote_manifest_cache_is_fresh(1_000, 4_601));
+	}
+
+	#[aidoku_test]
+	fn equal_score_prefers_newer_bundled_manifest() {
+		let remote = test_manifest(
+			"2026-07-21T13:32:32.576Z",
+			"https://toonlivre.net/assets/index-CMe0Aw9p.js",
+			"Magnesium-Strike-Astonish3",
+			"toonlivre.com::v8",
+			"t8_4v2_b",
+		);
+		let bundled = test_manifest(
+			"2026-07-22T12:38:32.851Z",
+			"https://toonlivre.net/assets/index-CTbxvntD.js",
+			"Phantom-Tide-Harvest8",
+			"toonlivre.net::w3",
+			"r7_5m2_k",
+		);
+
+		assert!(!should_prefer_remote_manifest(&remote, &bundled));
+	}
+
+	fn test_manifest(
+		extracted_at: &str,
+		bundle_url: &str,
+		prefix: &str,
+		salt: &str,
+		suffix: &str,
+	) -> ClientManifest {
+		let mut manifest = default_manifest();
+		manifest.extracted_at = Some(String::from(extracted_at));
+		manifest.bundle = Some(ManifestBundleMetadata {
+			url: Some(String::from(bundle_url)),
+			hash: None,
+		});
+
+		match &mut manifest.decrypt.passphrase {
+			ManifestPassphraseStrategy::UtcSha256Derived {
+				prefix: manifest_prefix,
+				salt: manifest_salt,
+				suffix: manifest_suffix,
+				..
+			}
+			| ManifestPassphraseStrategy::UtcMd5Derived {
+				prefix: manifest_prefix,
+				salt: manifest_salt,
+				suffix: manifest_suffix,
+				..
+			} => {
+				*manifest_prefix = String::from(prefix);
+				*manifest_salt = String::from(salt);
+				*manifest_suffix = String::from(suffix);
+			}
+		}
+
+		manifest
 	}
 }

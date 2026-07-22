@@ -177,8 +177,7 @@ fn helper_slugifies_titles_and_formats_chapters() {
 	assert!(manifest.request.verify_header.is_none());
 	assert!(manifest.request.session_cookie.mirrors_into.is_empty());
 	let bundled_passphrase = current_decryption_passphrase();
-	assert!(bundled_passphrase.starts_with("Magnesium-Strike-Astonish3"));
-	assert_eq!(bundled_passphrase.len(), 34);
+	assert_passphrase_recipe(&manifest, &bundled_passphrase);
 	assert_eq!(token.len(), 26);
 	assert!(
 		token
