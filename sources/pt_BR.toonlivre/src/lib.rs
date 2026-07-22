@@ -15,7 +15,7 @@ macro_rules! source_log {
 }
 
 pub(crate) const BASE_URL: &str = "https://toonlivre.net";
-pub(crate) const ACCEPT_LANGUAGE: &str = "en-US,en;q=0.9,pt;q=0.8";
+pub(crate) const ACCEPT_LANGUAGE: &str = "pt-BR,pt;q=0.9";
 
 mod api;
 mod manifest;

@@ -17,7 +17,7 @@ const SAMPLE_MANGA_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuse
 const SAMPLE_CHAPTER_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses/522.5";
 const REMOTE_MANIFEST_URL_FOR_TESTS: &str =
 	"https://exception7601.github.io/custom-aidoku-sources/manifest.json";
-const REMOTE_MANIFEST_USER_AGENT_FOR_TESTS: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
+const REMOTE_MANIFEST_USER_AGENT_FOR_TESTS: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15";
 
 fn make_id_manga() -> Manga {
 	Manga {
@@ -159,7 +159,7 @@ fn helper_slugifies_titles_and_formats_chapters() {
 	assert_eq!(manifest.source_id, "pt_BR.toonlivre");
 	assert_eq!(manifest.site_url, "https://toonlivre.net");
 	assert!(manifest.request.user_agent.contains("Mozilla/5.0"));
-	assert_eq!(manifest.request.accept_language, "en-US,en;q=0.9,pt;q=0.8");
+	assert_eq!(manifest.request.accept_language, "pt-BR,pt;q=0.9");
 	let chapter_signature = signature_value_for_url(
 		&manifest,
 		"https://toonlivre.net/api/mangas/obra-dbbabf0f/chapters/cap-dd9e898d-522_5",

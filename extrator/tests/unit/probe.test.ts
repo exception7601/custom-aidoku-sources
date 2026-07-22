@@ -24,7 +24,7 @@ function makeManifest(): ExtractedManifest {
     },
     request: {
       userAgent: 'Mozilla/5.0',
-      acceptLanguage: 'en-US,en;q=0.9,pt;q=0.8',
+      acceptLanguage: 'pt-BR,pt;q=0.9',
       signatureHeader: 'x-toon-signature',
       signatureRules: [
         {

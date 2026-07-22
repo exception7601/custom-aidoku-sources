@@ -15,7 +15,7 @@ describe('manifest extraction', () => {
     expect(manifest.sourceId).toBe(DEFAULT_SOURCE_ID);
     expect(manifest.bundle.discoveredFrom).toBe('file');
     expect(manifest.request.userAgent).toContain('Mozilla/5.0');
-    expect(manifest.request.acceptLanguage).toBe('en-US,en;q=0.9,pt;q=0.8');
+    expect(manifest.request.acceptLanguage).toBe('pt-BR,pt;q=0.9');
     expect(manifest.request.signatureHeader).toBe('x-toon-signature');
     expect(manifest.request.sessionCookie.name).toBe('toon_v');
     expect(manifest.decrypt.dataKeyHeader).toBe('x-toon-datakey');
