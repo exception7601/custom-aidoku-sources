@@ -5,7 +5,6 @@ import * as t from '@babel/types';
 const traverse = ((traverseImport as { default?: unknown }).default ??
   traverseImport) as typeof import('@babel/traverse').default;
 
-import { flattenPlusExpression } from '../evaluate.js';
 import type { PassphraseStrategy } from '../manifest.js';
 
 export interface DecryptRecognition {
@@ -122,7 +121,7 @@ function extractPassphraseStrategy(
     return undefined;
   }
 
-  const returnParts = flattenPlusExpression(returnExpression);
+  const returnParts = flattenConcatenatedExpression(functionPath.scope, returnExpression);
   const digestReturned = returnParts.at(-1);
   const prefixParts = returnParts.slice(0, -1);
   if (!digestReturned || prefixParts.length === 0) {
@@ -134,18 +133,18 @@ function extractPassphraseStrategy(
     return undefined;
   }
 
-  const digestMetadata = extractDigestMetadata(
-    resolveBoundExpression(functionPath.scope, digestReturned)
-  );
+  const digestMetadata = extractDigestMetadata(functionPath.scope, digestReturned);
   if (!digestMetadata) {
     return undefined;
   }
 
-  const digestParts = flattenPlusExpression(
-    resolveBoundExpression(functionPath.scope, digestMetadata.digestArgument)
+  const digestParts = flattenConcatenatedExpression(
+    functionPath.scope,
+    digestMetadata.digestArgument
   );
   const dateExpression = digestParts[0];
-  if (!dateExpression || !isUtcDateTemplate(functionPath.scope, dateExpression)) {
+  const dateFormat = dateExpression && detectDateFormat(functionPath.scope, dateExpression);
+  if (!dateFormat) {
     return undefined;
   }
 
@@ -167,7 +166,7 @@ function extractPassphraseStrategy(
   if (digestMetadata.algorithm === 'MD5') {
     return {
       kind: 'utc-md5-derived',
-      dateFormat: 'YYYY-MM-DD',
+      dateFormat,
       prefix,
       salt,
       suffix,
@@ -178,7 +177,7 @@ function extractPassphraseStrategy(
 
   return {
     kind: 'utc-sha256-derived',
-    dateFormat: 'YYYY-MM-DD',
+    dateFormat,
     prefix,
     salt,
     suffix,
@@ -204,23 +203,35 @@ function resolveFunctionPath(path: NodePath<t.Node>): NodePath<t.Function> | und
   return undefined;
 }
 
+function flattenConcatenatedExpression(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node
+): t.Node[] {
+  const resolvedNode = resolveBoundExpression(scope, node);
+
+  if (t.isBinaryExpression(resolvedNode, { operator: '+' })) {
+    return resolvedNode.left && resolvedNode.right
+      ? [
+          ...flattenConcatenatedExpression(scope, resolvedNode.left),
+          ...flattenConcatenatedExpression(scope, resolvedNode.right),
+        ]
+      : [resolvedNode];
+  }
+
+  const joinedParts = extractJoinedParts(scope, resolvedNode);
+  if (!joinedParts) {
+    return [resolvedNode];
+  }
+
+  return joinedParts.flatMap((part) => flattenConcatenatedExpression(scope, part));
+}
+
 function resolveStaticString(
   scope: NodePath<t.Function>['scope'],
   node: t.Node
 ): string | undefined {
-  const resolvedNode = resolveBoundExpression(scope, node);
-  const directLiteral = extractStringLiteral(resolvedNode);
-  if (directLiteral !== undefined) {
-    return directLiteral;
-  }
-
-  const splitLiteral = extractSplitLiteral(resolvedNode);
-  if (splitLiteral !== undefined) {
-    return splitLiteral;
-  }
-
-  if (t.isBinaryExpression(resolvedNode, { operator: '+' })) {
-    const parts = flattenPlusExpression(resolvedNode);
+  const parts = flattenConcatenatedExpression(scope, node);
+  if (parts.length > 1) {
     const values = parts.map((part) => resolveStaticString(scope, part));
     if (values.some((value) => value === undefined)) {
       return undefined;
@@ -229,23 +240,76 @@ function resolveStaticString(
     return values.join('');
   }
 
-  if (!t.isCallExpression(resolvedNode) || !t.isMemberExpression(resolvedNode.callee)) {
+  const [resolvedNode] = parts;
+  if (!resolvedNode) {
     return undefined;
   }
 
-  if (
-    resolvedNode.callee.computed ||
-    !t.isIdentifier(resolvedNode.callee.property, { name: 'join' })
-  ) {
+  const directLiteral = extractStringLiteral(resolvedNode);
+  if (directLiteral !== undefined) {
+    return directLiteral;
+  }
+
+  const joinedLiteral = extractJoinedLiteral(scope, resolvedNode);
+  if (joinedLiteral !== undefined) {
+    return joinedLiteral;
+  }
+
+  return extractSplitLiteral(resolvedNode);
+}
+
+function extractJoinedLiteral(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node
+): string | undefined {
+  if (!t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
     return undefined;
   }
 
-  const [delimiter] = resolvedNode.arguments;
+  if (node.callee.computed || !t.isIdentifier(node.callee.property, { name: 'join' })) {
+    return undefined;
+  }
+
+  const [delimiter] = node.arguments;
   if (!t.isStringLiteral(delimiter, { value: '' })) {
     return undefined;
   }
 
-  return resolveStaticString(scope, resolvedNode.callee.object);
+  return resolveStaticString(scope, node.callee.object);
+}
+
+function extractJoinedParts(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node
+): t.Expression[] | undefined {
+  if (!t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
+    return undefined;
+  }
+
+  if (node.callee.computed || !t.isIdentifier(node.callee.property, { name: 'join' })) {
+    return undefined;
+  }
+
+  const [delimiter] = node.arguments;
+  if (!t.isStringLiteral(delimiter, { value: '' })) {
+    return undefined;
+  }
+
+  const joinedObject = resolveBoundExpression(scope, node.callee.object);
+  if (!t.isArrayExpression(joinedObject)) {
+    return undefined;
+  }
+
+  const elements: t.Expression[] = [];
+  for (const element of joinedObject.elements) {
+    if (!element || !t.isExpression(element)) {
+      return undefined;
+    }
+
+    elements.push(element);
+  }
+
+  return elements;
 }
 
 function extractStringLiteral(node: t.Node): string | undefined {
@@ -278,31 +342,35 @@ function extractSplitLiteral(node: t.Node): string | undefined {
   return node.callee.object.value;
 }
 
-function extractDigestMetadata(node: t.Node):
+function extractDigestMetadata(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node
+):
   | {
       algorithm: 'MD5' | 'SHA256';
       digestSlice: PassphraseStrategy['digestSlice'];
       digestArgument: t.Node;
     }
   | undefined {
-  if (!t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
+  const resolvedNode = resolveBoundExpression(scope, node);
+  if (!t.isCallExpression(resolvedNode) || !t.isMemberExpression(resolvedNode.callee)) {
     return undefined;
   }
 
   const digestSliceProperty =
-    !node.callee.computed && t.isIdentifier(node.callee.property)
-      ? node.callee.property.name
+    !resolvedNode.callee.computed && t.isIdentifier(resolvedNode.callee.property)
+      ? resolvedNode.callee.property.name
       : undefined;
   if (digestSliceProperty !== 'substring' && digestSliceProperty !== 'slice') {
     return undefined;
   }
 
-  const [startArgument, endArgument] = node.arguments;
+  const [startArgument, endArgument] = resolvedNode.arguments;
   if (!t.isNumericLiteral(startArgument) || !t.isNumericLiteral(endArgument)) {
     return undefined;
   }
 
-  const toStringCall = node.callee.object;
+  const toStringCall = resolvedNode.callee.object;
   if (!t.isCallExpression(toStringCall) || !t.isMemberExpression(toStringCall.callee)) {
     return undefined;
   }
@@ -344,13 +412,25 @@ function extractDigestMetadata(node: t.Node):
   };
 }
 
-function isUtcDateTemplate(scope: NodePath<t.Function>['scope'], node: t.Node): boolean {
+function detectDateFormat(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node
+): PassphraseStrategy['dateFormat'] | undefined {
   const resolvedNode = resolveBoundExpression(scope, node);
-  if (!t.isTemplateLiteral(resolvedNode) || resolvedNode.expressions.length !== 3) {
+
+  if (isUtcDateTemplate(resolvedNode) || isIsoDateSlice(resolvedNode)) {
+    return 'YYYY-MM-DD';
+  }
+
+  return undefined;
+}
+
+function isUtcDateTemplate(node: t.Node): boolean {
+  if (!t.isTemplateLiteral(node) || node.expressions.length !== 3) {
     return false;
   }
 
-  const [yearExpression, monthExpression, dayExpression] = resolvedNode.expressions;
+  const [yearExpression, monthExpression, dayExpression] = node.expressions;
   if (!yearExpression || !monthExpression || !dayExpression) {
     return false;
   }
@@ -362,8 +442,36 @@ function isUtcDateTemplate(scope: NodePath<t.Function>['scope'], node: t.Node): 
   );
 }
 
-function resolveBoundExpression(scope: NodePath<t.Function>['scope'], node: t.Node): t.Node {
-  if (!t.isIdentifier(node)) {
+function isIsoDateSlice(node: t.Node): boolean {
+  if (!t.isCallExpression(node) || !t.isMemberExpression(node.callee)) {
+    return false;
+  }
+
+  const dateSliceProperty =
+    !node.callee.computed && t.isIdentifier(node.callee.property)
+      ? node.callee.property.name
+      : undefined;
+  if (dateSliceProperty !== 'substring' && dateSliceProperty !== 'slice') {
+    return false;
+  }
+
+  const [startArgument, endArgument] = node.arguments;
+  if (
+    !t.isNumericLiteral(startArgument, { value: 0 }) ||
+    !t.isNumericLiteral(endArgument, { value: 10 })
+  ) {
+    return false;
+  }
+
+  return containsPropertyName(node.callee.object, 'toISOString');
+}
+
+function resolveBoundExpression(
+  scope: NodePath<t.Function>['scope'],
+  node: t.Node,
+  seen = new Set<string>()
+): t.Node {
+  if (!t.isIdentifier(node) || seen.has(node.name)) {
     return node;
   }
 
@@ -372,7 +480,8 @@ function resolveBoundExpression(scope: NodePath<t.Function>['scope'], node: t.No
     return node;
   }
 
-  return binding.path.node.init;
+  seen.add(node.name);
+  return resolveBoundExpression(binding.path.scope, binding.path.node.init, seen);
 }
 
 function containsPropertyName(node: t.Node, propertyName: string): boolean {

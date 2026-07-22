@@ -64,4 +64,24 @@ describe('decrypt recognizer', () => {
       },
     });
   });
+
+  it('extracts an array-join + ISO date passphrase recipe from the latest live bundle pattern', async () => {
+    const bundle = await readFixture('toonlivre-bundle-seed-array-join-snippet.js');
+    const recognition = recognizeDecryptSignals(parseBundle(bundle));
+
+    expect(recognition.algorithm).toBe('cryptojs-rabbit');
+    expect(recognition.passphraseFunctionName).toBe('sv');
+    expect(recognition.passphrase).toEqual({
+      kind: 'utc-sha256-derived',
+      dateFormat: 'YYYY-MM-DD',
+      prefix: 'Phantom-Tide-Harvest8',
+      salt: 'toonlivre.net::w3',
+      suffix: 'r7_5m2_k',
+      digestEncoding: 'hex',
+      digestSlice: {
+        start: 0,
+        end: 8,
+      },
+    });
+  });
 });
