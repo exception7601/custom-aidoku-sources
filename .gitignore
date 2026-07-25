@@ -9,3 +9,4 @@
 /sources/*/public/
 /sources/*/package.aix
 /sources/*/target/
+/token-server/wireguard/wg0.conf

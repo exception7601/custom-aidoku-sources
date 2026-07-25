@@ -2,20 +2,19 @@ version: '3.8'
 
 services:
   token-server:
-    build: .
+    build:
+      context: .
     container_name: toonlivre-token-server
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - NODE_ENV=production
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+    ports:
+      - "4000:4000"
+    environment:
+      - WG_AUTO_UP=${WG_AUTO_UP:-true}
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./wireguard:/etc/wireguard
     networks:
       - token-network
     logging:
