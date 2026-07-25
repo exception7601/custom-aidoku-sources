@@ -14,12 +14,20 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "docker:test": "docker compose up -d && sleep 2 && bun run test:integration && docker compose down"
+    "docker:test": "docker compose up -d && sleep 2 && bun run test:integration && docker compose down",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix"
   },
   "dependencies": {
     "crypto-js": "^4.2.0"
   },
   "devDependencies": {
-    "@types/crypto-js": "^4.2.2"
+    "@eslint/js": "^10.0.1",
+    "@types/crypto-js": "^4.2.2",
+    "eslint": "9",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0"
   }
 }
