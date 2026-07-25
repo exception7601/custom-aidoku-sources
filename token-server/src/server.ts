@@ -61,9 +61,9 @@ function Z0(input: string | number[]): string {
 /**
  * Simple logger
  */
-function log(level: 'INFO' | 'ERROR' | 'CACHE' | 'DECRYPT' | 'ACCESS', message: string) {
+function log(level: 'info' | 'error' | 'cache' | 'decrypt' | 'access', message: string) {
   const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] [${level}] ${message}`)
+  console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`)
 }
 
 /**
@@ -90,10 +90,7 @@ class TokenExecutor {
    * Generate session ID
    */
   generateSession(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
-    )
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
   }
 
   /**
@@ -110,7 +107,7 @@ class TokenExecutor {
       const match = this.bundleCode.match(pattern)
       if (match) {
         const funcName = match[1]
-        
+
         // Extract complete function
         const start = this.bundleCode.indexOf(`${funcName}=()=>{`)
         if (start === -1) continue
@@ -154,7 +151,7 @@ class TokenExecutor {
           const fn = vm.runInContext(code, this.context)
           return fn()
         } catch (error) {
-          log('ERROR', `Error executing ${funcName}: ${(error as Error).message}`)
+          log('error', `Error executing ${funcName}: ${(error as Error).message}`)
           continue
         }
       }
@@ -172,17 +169,18 @@ class TokenExecutor {
         credentials: 'include',
         cache: 'no-store',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          Accept: 'application/json, text/plain, */*',
           'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
           'Accept-Encoding': 'gzip, deflate, br',
-          'Referer': baseUrl,
-          'Origin': baseUrl,
+          Referer: baseUrl,
+          Origin: baseUrl,
         },
       })
 
       if (!response.ok) {
-        throw new Error(`Seed endpoint retornou ${response.status}`)
+        throw new Error(`Seed endpoint returned ${response.status}`)
       }
 
       const data = await response.json()
@@ -193,7 +191,9 @@ class TokenExecutor {
 
       return data.token
     } catch (error) {
-      throw new Error(`Failed to fetch seed JWT: ${(error as Error).message}`)
+      throw new Error(`Failed to fetch seed JWT: ${(error as Error).message}`, {
+        cause: error,
+      })
     }
   }
 
@@ -210,7 +210,7 @@ class TokenExecutor {
   /**
    * Generate headers automatically
    */
-  async generateHeaders(url: string): Promise<Record<string, string>> {
+  async generateHeaders(_url: string): Promise<Record<string, string>> {
     const strategy = this.detectStrategy()
     const session = this.generateSession()
 
@@ -253,12 +253,12 @@ setInterval(() => {
 
 const server = Bun.serve({
   port: process.env.PORT || 3000,
-  
+
   async fetch(req) {
     const url = new URL(req.url)
-    
+
     // Access log
-    log('ACCESS', `${req.method} ${url.pathname}`)
+    log('access', `${req.method} ${url.pathname}`)
 
     // CORS
     if (req.method === 'OPTIONS') {
@@ -273,10 +273,10 @@ const server = Bun.serve({
 
     // Health check
     if (url.pathname === '/health') {
-      return Response.json({ 
+      return Response.json({
         status: 'ok',
         uptime: process.uptime(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
     }
 
@@ -287,41 +287,40 @@ const server = Bun.serve({
         const chapterUrl = body.url
 
         if (!chapterUrl) {
-          return Response.json(
-            { error: 'Chapter URL is required' },
-            { status: 400 }
-          )
+          return Response.json({ error: 'Chapter URL is required' }, { status: 400 })
         }
 
         // Check token cache (TTL: 25 seconds)
         const cacheKey = `tokens:${chapterUrl}`
         const cached = tokenCache.get(cacheKey)
         if (cached) {
-          log('CACHE', `Tokens served from cache for ${chapterUrl}`)
+          log('cache', `Tokens served from cache for ${chapterUrl}`)
           return Response.json({
             ...cached,
             cached: true,
-            expiresIn: Math.floor((cached.expiresAt - Date.now()) / 1000)
+            expiresIn: Math.floor((cached.expiresAt - Date.now()) / 1000),
           })
         }
 
         // Download bundle (with 10 minute cache)
         let bundleCode = bundleCache.get('bundle')
         if (!bundleCode) {
-          log('INFO', 'Downloading bundle from ToonLivre...')
-          
+          log('info', 'Downloading bundle from ToonLivre...')
+
           const response = await fetch('https://toonlivre.net', {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              Accept:
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
               'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
               'Accept-Encoding': 'gzip, deflate, br',
               'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
+              Pragma: 'no-cache',
             },
           })
           const html = await response.text()
-          
+
           // Extract bundle URL
           const match = html.match(/<script[^>]*src="([^"]*index-[^"]*\.js)"/)
           if (!match) {
@@ -332,23 +331,24 @@ const server = Bun.serve({
             ? match[1]
             : `https://toonlivre.net${match[1]}`
 
-          log('INFO', `Downloading bundle: ${bundleUrl}`)
+          log('info', `Downloading bundle: ${bundleUrl}`)
           const bundleResponse = await fetch(bundleUrl, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-              'Accept': '*/*',
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              Accept: '*/*',
               'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
               'Accept-Encoding': 'gzip, deflate, br',
-              'Referer': 'https://toonlivre.net/',
+              Referer: 'https://toonlivre.net/',
             },
           })
           bundleCode = await bundleResponse.text()
 
           // Cache for 10 minutes
           bundleCache.set('bundle', bundleCode, 10 * 60)
-          log('CACHE', 'Bundle stored in cache (TTL: 10 min)')
+          log('cache', 'Bundle stored in cache (TTL: 10 min)')
         } else {
-          log('CACHE', 'Bundle loaded from cache')
+          log('cache', 'Bundle loaded from cache')
         }
 
         // Generate tokens
@@ -367,25 +367,27 @@ const server = Bun.serve({
 
         // Cache for 25 seconds
         tokenCache.set(cacheKey, result, 25)
-        log('CACHE', `Tokens generated and stored for ${chapterUrl}`)
+        log('cache', `Tokens generated and stored for ${chapterUrl}`)
 
-        return Response.json({
-          ...result,
-          cached: false,
-          expiresIn: 25
-        }, {
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-        })
-
-      } catch (error) {
-        log('ERROR', `Error generating tokens: ${(error as Error).message}`)
         return Response.json(
-          { 
+          {
+            ...result,
+            cached: false,
+            expiresIn: 25,
+          },
+          {
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      } catch (error) {
+        log('error', `Error generating tokens: ${(error as Error).message}`)
+        return Response.json(
+          {
             error: 'Error generating tokens',
-            message: (error as Error).message 
+            message: (error as Error).message,
           },
           { status: 500 }
         )
@@ -399,14 +401,11 @@ const server = Bun.serve({
         const { encrypted, passphrase } = body
 
         if (!encrypted) {
-          return Response.json(
-            { error: 'Encrypted data is required' },
-            { status: 400 }
-          )
+          return Response.json({ error: 'Encrypted data is required' }, { status: 400 })
         }
 
         // Get bundle from cache
-        let bundleCode = bundleCache.get('bundle')
+        const bundleCode = bundleCache.get('bundle')
         if (!bundleCode) {
           return Response.json(
             { error: 'Bundle not found. Make a request to /api/tokens first.' },
@@ -417,22 +416,24 @@ const server = Bun.serve({
         const executor = new TokenExecutor(bundleCode)
         const decrypted = executor.decrypt(encrypted, passphrase)
 
-        log('DECRYPT', 'Decryption successful')
-        return Response.json({
-          decrypted,
-        }, {
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-        })
-
-      } catch (error) {
-        log('ERROR', `Error decrypting: ${(error as Error).message}`)
+        log('decrypt', 'Decryption successful')
         return Response.json(
-          { 
+          {
+            decrypted,
+          },
+          {
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      } catch (error) {
+        log('error', `Error decrypting: ${(error as Error).message}`)
+        return Response.json(
+          {
             error: 'Error decrypting',
-            message: (error as Error).message 
+            message: (error as Error).message,
           },
           { status: 500 }
         )
@@ -451,14 +452,11 @@ const server = Bun.serve({
     if (url.pathname === '/api/cache/clear' && req.method === 'POST') {
       bundleCache.clear()
       tokenCache.clear()
-      log('INFO', 'Cache cleared manually')
+      log('info', 'Cache cleared manually')
       return Response.json({ message: 'Cache cleared successfully' })
     }
 
-    return Response.json(
-      { error: 'Endpoint not found' },
-      { status: 404 }
-    )
+    return Response.json({ error: 'Endpoint not found' }, { status: 404 })
   },
 })
 

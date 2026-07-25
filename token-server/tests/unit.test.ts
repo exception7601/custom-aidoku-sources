@@ -60,16 +60,15 @@ console.log('\n 2. Teste de Geracao de Session')
 console.log('---------------------------------------------------------------')
 
 function generateSession(): string {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
-  )
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
 }
 
 const session1 = generateSession()
 const session2 = generateSession()
 
-console.log(session1.length > 20 ? ' Session gerado com tamanho correto' : ' Session tamanho incorreto')
+console.log(
+  session1.length > 20 ? ' Session gerado com tamanho correto' : ' Session tamanho incorreto'
+)
 console.log(session1 !== session2 ? ' Sessions sao unicos' : ' Sessions nao sao unicos')
 console.log(`   Session exemplo: ${session1}`)
 

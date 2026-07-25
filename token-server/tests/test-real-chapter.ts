@@ -21,7 +21,7 @@ async function testRealChapter() {
     console.log('--------------------------------------------------')
     console.log('1. Generating tokens...')
     console.log('--------------------------------------------------')
-    
+
     const tokenStart = Date.now()
     const tokenResponse = await fetch(`${SERVER_URL}/api/tokens`, {
       method: 'POST',
@@ -53,10 +53,11 @@ async function testRealChapter() {
     const chapterStart = Date.now()
     const chapterResponse = await fetch(CHAPTER_URL, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: 'application/json, text/plain, */*',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Referer': 'https://toonlivre.net/',
+        Referer: 'https://toonlivre.net/',
         'x-toon-signature': tokens.headers['x-toon-signature'],
         'x-toon-verify': tokens.headers['x-toon-verify'],
       },
@@ -66,7 +67,7 @@ async function testRealChapter() {
 
     console.log(`Status: ${chapterResponse.status} ${chapterResponse.statusText}`)
     console.log(`Time: ${chapterTime}ms`)
-    
+
     if (!chapterResponse.ok) {
       console.log('Request failed')
       console.log(`   Possible reasons:`)
@@ -79,7 +80,7 @@ async function testRealChapter() {
 
     const data = await chapterResponse.json()
     console.log('Request successful!')
-    
+
     // 3. Analyze response
     console.log('\n--------------------------------------------------')
     console.log('3. Analyzing response...')
@@ -87,21 +88,21 @@ async function testRealChapter() {
 
     console.log(`   Data type: ${typeof data}`)
     console.log(`   Is array: ${Array.isArray(data)}`)
-    
+
     if (typeof data === 'object') {
       const keys = Object.keys(data)
       console.log(`   Fields: ${keys.join(', ')}`)
-      
+
       // LOG DATA RECEIVED
       console.log('DATA RECEIVED (first 500 characters):')
       console.log(JSON.stringify(data, null, 2).substring(0, 500))
-      
+
       // Find encrypted field dynamically
-      const encryptedKey = keys[0];
-      const encryptedValue = data[encryptedKey];
-      
+      const encryptedKey = keys[0]
+      const encryptedValue = data[encryptedKey]
+
       console.log(`Data appears to be encrypted in field: ${encryptedKey}`)
-      
+
       // 4. Try to decrypt
       console.log('--------------------------------------------------')
       console.log('4. Decrypting...')
@@ -123,7 +124,7 @@ async function testRealChapter() {
 
       const decrypted = await decryptResponse.json()
       console.log('Decryption successful!')
-      
+
       // Display decrypted data
       console.log(JSON.stringify(decrypted, null, 2).substring(0, 500))
     } else {
@@ -142,7 +143,6 @@ async function testRealChapter() {
   Integration with ToonLivre is working!
 `)
     console.log('--------------------------------------------------\n')
-
   } catch (error) {
     console.log('\nError in test:', (error as Error).message)
     console.log('\nPossible causes:')

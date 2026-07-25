@@ -2,7 +2,7 @@
 
 /**
  * Teste LIVE com API real do ToonLivre
- * 
+ *
  * ATENCAO: Este teste faz requests reais para:
  * - Servidor de tokens (localhost:3000)
  * - API do ToonLivre (toonlivre.net)
@@ -34,7 +34,7 @@ console.log('---------------------------------------------------------------')
 try {
   const response = await fetch(`${BASE_URL}/health`)
   const data = await response.json()
-  
+
   console.log(` Servidor esta online`)
   console.log(`   Status: ${data.status}`)
   console.log(`   Uptime: ${Math.round(data.uptime)}s`)
@@ -119,7 +119,7 @@ try {
   console.log(`   Cached: ${data.cached}`)
   console.log(`   Session igual: ${data.session === tokens.session}`)
   console.log(`   Expires in: ${data.expiresIn}s`)
-  
+
   if (duration > 100) {
     console.log(`    Cache mais lento que esperado (${duration}ms > 100ms)`)
   }
@@ -134,9 +134,9 @@ console.log('---------------------------------------------------------------')
 try {
   // URL real de um capitulo do ToonLivre (se existir)
   const testUrl = 'https://toonlivre.net/api/mangas/solo-leveling/chapters'
-  
+
   console.log(` Gerando tokens para: ${testUrl}`)
-  
+
   const tokenResponse = await fetch(`${BASE_URL}/api/tokens`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -148,18 +148,18 @@ try {
   }
 
   const tokenData = await tokenResponse.json()
-  
+
   console.log(` Tokens gerados`)
   console.log(`   Strategy: ${tokenData.strategy}`)
 
   console.log(`\n Fazendo request para ToonLivre...`)
-  
+
   const apiResponse = await fetch(testUrl, {
     headers: {
       'x-toon-signature': tokenData.headers['x-toon-signature'],
       'x-toon-verify': tokenData.headers['x-toon-verify'],
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'application/json',
+      Accept: 'application/json',
     },
   })
 
@@ -169,19 +169,19 @@ try {
 
   if (apiResponse.ok) {
     const dataKey = apiResponse.headers.get('x-toon-datakey')
-    
+
     if (dataKey) {
       console.log(`\n Resposta esta CRIPTOGRAFADA`)
       console.log(`   DataKey: ${dataKey}`)
-      
+
       const jsonData = await apiResponse.json()
       const encryptedData = jsonData[dataKey]
-      
+
       if (encryptedData) {
         console.log(`   Encrypted: ${encryptedData.substring(0, 50)}...`)
-        
+
         console.log(`\n Descriptografando...`)
-        
+
         const decryptResponse = await fetch(`${BASE_URL}/api/decrypt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -194,11 +194,11 @@ try {
         if (decryptResponse.ok) {
           const decryptData = await decryptResponse.json()
           const parsed = JSON.parse(decryptData.decrypted)
-          
+
           console.log(` Dados descriptografados com sucesso!`)
           console.log(`   Tipo: ${typeof parsed}`)
           console.log(`   Keys: ${Object.keys(parsed).join(', ')}`)
-          
+
           if (Array.isArray(parsed)) {
             console.log(`   Array length: ${parsed.length}`)
           }
@@ -217,7 +217,6 @@ try {
     const text = await apiResponse.text()
     console.log(`   Response: ${text.substring(0, 200)}`)
   }
-
 } catch (error) {
   console.log(` Erro no teste real: ${(error as Error).message}`)
   console.log(`   (Isso pode ser esperado se a URL nao existir ou API mudar)`)
@@ -229,14 +228,14 @@ console.log('---------------------------------------------------------------')
 
 try {
   console.log(` Gerando tokens...`)
-  
+
   const response1 = await fetch(`${BASE_URL}/api/tokens`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url: 'https://toonlivre.net/api/test' }),
   })
   const data1 = await response1.json()
-  
+
   console.log(` Tokens gerados (cached: ${data1.cached}, expires in: ${data1.expiresIn}s)`)
   console.log(`   Session: ${data1.session}`)
 
@@ -254,7 +253,6 @@ try {
   console.log(` Tokens retornados (cached: ${data2.cached}, expires in: ${data2.expiresIn}s)`)
   console.log(`   Session igual: ${data1.session === data2.session}`)
   console.log(`   TTL diminuiu: ${data1.expiresIn > data2.expiresIn}`)
-
 } catch (error) {
   console.log(` Erro: ${(error as Error).message}`)
 }
@@ -266,7 +264,7 @@ console.log('---------------------------------------------------------------')
 try {
   const response = await fetch(`${BASE_URL}/api/cache/stats`)
   const data = await response.json()
-  
+
   console.log(` Estatisticas:`)
   console.log(`   Bundle: ${data.bundle}`)
   console.log(`   Tokens em cache: ${data.tokens}`)
