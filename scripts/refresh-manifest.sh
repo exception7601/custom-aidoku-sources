@@ -168,30 +168,30 @@ if [[ "$AUTO_COMMIT" == "1" ]]; then
   commit_bundle_snapshot_changes
 fi
 
-if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
-  "$REPO_ROOT/scripts/extract-manifest.sh" \
-    --sync-source-fallback \
-    --bundle-file "$SAVED_BUNDLE_FILE" \
-    --bundle-url-hint "$SAVED_BUNDLE_URL"
-else
-  "$REPO_ROOT/scripts/extract-manifest.sh" \
-    --bundle-file "$SAVED_BUNDLE_FILE" \
-    --bundle-url-hint "$SAVED_BUNDLE_URL"
-fi
+# if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
+#   "$REPO_ROOT/scripts/extract-manifest.sh" \
+#     --sync-source-fallback \
+#     --bundle-file "$SAVED_BUNDLE_FILE" \
+#     --bundle-url-hint "$SAVED_BUNDLE_URL"
+# else
+#   "$REPO_ROOT/scripts/extract-manifest.sh" \
+#     --bundle-file "$SAVED_BUNDLE_FILE" \
+#     --bundle-url-hint "$SAVED_BUNDLE_URL"
+# fi
 
-run_extrator validate \
-  --manifest "$MANIFEST_PATH" >/dev/null
+# run_extrator validate \
+#   --manifest "$MANIFEST_PATH" >/dev/null
 
-echo "[manifest] refresh + validation completed"
-echo "[manifest] updated: $MANIFEST_PATH"
-if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
-  echo "[manifest] updated: $SOURCE_FALLBACK_PATH"
-else
-  echo "[manifest] source fallback sync skipped"
-fi
+# echo "[manifest] refresh + validation completed"
+# echo "[manifest] updated: $MANIFEST_PATH"
+# if [[ "$SYNC_SOURCE_FALLBACK" == "1" ]]; then
+#   echo "[manifest] updated: $SOURCE_FALLBACK_PATH"
+# else
+#   echo "[manifest] source fallback sync skipped"
+# fi
 
-if [[ "$AUTO_COMMIT" == "1" ]]; then
-  commit_manifest_changes
-else
-  echo "[manifest] auto-commit disabled"
-fi
+# if [[ "$AUTO_COMMIT" == "1" ]]; then
+#   commit_manifest_changes
+# else
+#   echo "[manifest] auto-commit disabled"
+# fi
