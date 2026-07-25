@@ -94,8 +94,8 @@ jobs:
       - name: Build release artifacts
         run: ./scripts/release.sh
 
-      - name: Copy manifest into `public`
-        run: cp extrator/manifest/manifest.json public/manifest.json
+      # - name: Copy manifest into `public`
+      #  run: cp extrator/manifest/manifest.json public/manifest.json
 
       - name: Commit release metadata
         run: |
