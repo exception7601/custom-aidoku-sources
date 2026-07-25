@@ -20,6 +20,9 @@ aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+dev-server = []
+
 [profile.dev]
 panic = "abort"
 

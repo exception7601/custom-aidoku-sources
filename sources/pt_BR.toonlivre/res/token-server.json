@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "host": "https://toons.4nd.xyz",
+  "endpoints": {
+    "tokens": "/api/tokens",
+    "health": "/health"
+  },
+  "timeout": {
+    "connect": 10,
+    "request": 30
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 20
+  },
+  "fallback": {
+    "enabled": false,
+    "retryCount": 2
+  }
+}

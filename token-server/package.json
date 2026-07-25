@@ -1,0 +1,25 @@
+{
+  "name": "toonlivre-token-server",
+  "version": "1.0.0",
+  "description": "API server para geração de tokens ToonLivre",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "start": "bun run src/server.ts",
+    "build": "bun build src/server.ts --outdir dist --target bun",
+    "test": "bun run tests/unit.test.ts",
+    "test:integration": "bun run tests/integration.test.ts",
+    "test:live": "bun run tests/live.test.ts",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:test": "docker compose up -d && sleep 2 && bun run test:integration && docker compose down"
+  },
+  "dependencies": {
+    "crypto-js": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2"
+  }
+}
