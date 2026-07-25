@@ -14,9 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-	BASE_URL, active_manifest, current_decryption_passphrase_for_manifest, describe_token_mirror,
-	generate_session_cookie_value, percent_encode, signature_value_for_url_with_session,
-	token_mirror_header_names,
+	BASE_URL, percent_encode, token_server,
 };
 
 const API_BASE: &str = "https://toonlivre.net/api";
@@ -231,123 +229,69 @@ fn request_json<T>(url: &str) -> Result<T>
 where
 	T: serde::de::DeserializeOwned,
 {
-	let manifest = active_manifest();
-	let verification_token = generate_session_cookie_value(&manifest);
-	let signature_value = signature_value_for_url_with_session(&manifest, url, &verification_token);
-	let token_mirror = describe_token_mirror(&manifest);
-	source_log!(
-		"[toonlivre] request_json start url={} signature_header={} token_mirror={} cookie_name={} passphrase={}",
-		url,
-		manifest.request.signature_header,
-		token_mirror,
-		manifest.request.session_cookie.name,
-		current_decryption_passphrase_for_manifest(&manifest)
-	);
-	let cookie = format!(
-		"{}={verification_token}",
-		manifest.request.session_cookie.name
-	);
+	source_log!("[toonlivre] request_json url={}", url);
+	let tokens_url = token_server::full_tokens_url().ok_or_else(|| {
+		AidokuError::Message(String::from("Failed to get tokens URL"))
+	})?;
+	let response = Request::post(&tokens_url)?
+		.body(serde_json::to_vec(&serde_json::json!({
+			"url": url
+		})).unwrap().as_slice())
+		.header("content-type", "application/json")
+		.send()
+		.map_err(|e| AidokuError::Message(format!("Token server request failed: {:?}", e)))?;
+	
+	if response.status_code() != 200 {
+		bail!("ToonLivre request failed with status {}", response.status_code());
+	}
+	
+	let body = response.get_string().map_err(|e| {
+		AidokuError::Message(format!("Token server response body read failed: {:?}", e))
+	})?;
+	
+	let tokens: token_server::TokenServerResponse = serde_json::from_str(&body).map_err(|e| {
+		AidokuError::Message(format!("Token server response parse failed: {:?}", e))
+	})?;
+	
+	let headers = tokens.headers.ok_or_else(|| {
+		AidokuError::Message(String::from("Token server response missing headers"))
+	})?;
+	let passphrase = tokens.passphrase.ok_or_else(|| {
+		AidokuError::Message(String::from("Token server response missing passphrase"))
+	})?;
+	
 	let mut request = Request::get(url)?
 		.header("accept", "application/json, text/plain, */*")
-		.header("accept-language", &manifest.request.accept_language)
-		.header("user-agent", &manifest.request.user_agent)
-		.header("origin", BASE_URL)
-		.header("referer", BASE_URL)
-		.header("cookie", &cookie);
-	request.set_header(manifest.request.signature_header.as_str(), &signature_value);
-	for header_name in token_mirror_header_names(&manifest).iter() {
-		request.set_header(header_name, &verification_token);
-	}
+		.header("x-toon-signature", &headers.signature)
+		.header("x-toon-verify", &headers.verify);
+	
 	let response = request.send().map_err(|error| {
 		AidokuError::Message(format!(
-			"ToonLivre request could not be sent.\nURL: {url}\nError: {error:?}\nHint: verifique rede, Cloudflare e tente novamente."
+			"ToonLivre request (with tokens) could not be sent.\nURL: {url}\nError: {error:?}"
 		))
 	})?;
+	
 	let status = response.status_code();
-	let data_key = response.get_header("x-toon-datakey");
-	let content_type = response.get_header("content-type");
-	let cf_ray = response.get_header("cf-ray");
-	let retry_after = response.get_header("retry-after");
-	let rate_remaining = response.get_header("ratelimit-remaining");
-	let rate_reset = response.get_header("ratelimit-reset");
-	source_log!(
-		"[toonlivre] request_json response url={} status={} data_key={:?} content_type={:?} cf_ray={:?}",
-		url,
-		status,
-		data_key.as_deref(),
-		content_type.as_deref(),
-		cf_ray.as_deref()
-	);
 	let body = response.get_string().map_err(|error| {
 		AidokuError::Message(format!(
 			"Failed to read ToonLivre response body.\nURL: {url}\nStatus: {status}\nError: {error:?}"
 		))
 	})?;
-	source_log!(
-		"[toonlivre] request_json body url={} snippet={}",
-		url,
-		summarize_body(&body)
-	);
+	
 	if !(200..300).contains(&status) {
-		bail!(
-			"{}",
-			format_request_failure(RequestFailureContext {
-				url,
-				status,
-				body: &body,
-				manifest: &manifest,
-				signature_value: &signature_value,
-				content_type: content_type.as_deref(),
-				cf_ray: cf_ray.as_deref(),
-				retry_after: retry_after.as_deref(),
-				rate_remaining: rate_remaining.as_deref(),
-				rate_reset: rate_reset.as_deref(),
-			})
-		);
+		bail!("ToonLivre request failed with status {}", status);
 	}
-	let body = match data_key.as_deref() {
-		Some(data_key) => {
-			source_log!(
-				"[toonlivre] request_json decrypt start url={} data_key={} body_snippet={}",
-				url,
-				data_key,
-				summarize_body(&body)
-			);
-			decrypt_response_payload(&body, data_key, &manifest).map_err(|error| {
-				AidokuError::Message(format_payload_failure(
-					url,
-					Some(data_key),
-					&body,
-					&manifest,
-					&format!("{error:?}"),
-					"decrypt",
-				))
-			})?
-		}
-		None if url.contains("/chapters/") => {
-			bail!(
-				"{}",
-				format_payload_failure(
-					url,
-					None,
-					&body,
-					&manifest,
-					"Missing `x-toon-datakey` response header",
-					"decrypt",
-				)
-			);
-		}
-		None => body,
+	
+	let body = if url.contains("/chapters/") {
+		source_log!("[toonlivre] decrypting chapter payload using token_server passphrase");
+		decrypt_cryptojs_rabbit(&body, &passphrase)?
+	} else {
+		body
 	};
-	source_log!(
-		"[toonlivre] request_json final_payload url={} snippet={}",
-		url,
-		summarize_body(&body)
-	);
+	
 	serde_json::from_str(&body).map_err(|error| {
 		AidokuError::Message(format!(
-			"Failed to parse ToonLivre JSON response.\nURL: {url}\nError: {error}\nBody: {}",
-			summarize_body(&body)
+			"Failed to parse ToonLivre JSON response (with tokens).\nURL: {url}\nError: {error}"
 		))
 	})
 }
@@ -359,184 +303,6 @@ fn extract_error_message(body: &str) -> Option<String> {
 		.or_else(|| value.get("message"))
 		.and_then(Value::as_str)
 		.map(String::from)
-}
-
-fn format_request_failure(context: RequestFailureContext<'_>) -> String {
-	let mut message = String::from("ToonLivre request failed.");
-	push_detail_line(&mut message, "URL", context.url);
-	push_detail_line(
-		&mut message,
-		"Status",
-		&format!("{} {}", context.status, describe_status(context.status)),
-	);
-	push_detail_line(
-		&mut message,
-		"Request signature",
-		&format!(
-			"{}={}",
-			context.manifest.request.signature_header, context.signature_value
-		),
-	);
-	push_detail_line(
-		&mut message,
-		"Token mirror",
-		&describe_token_mirror(context.manifest),
-	);
-
-	let mut response_headers = Vec::new();
-	if let Some(content_type) = context.content_type {
-		response_headers.push(format!("content-type={content_type}"));
-	}
-	if let Some(cf_ray) = context.cf_ray {
-		response_headers.push(format!("cf-ray={cf_ray}"));
-	}
-	if let Some(retry_after) = context.retry_after {
-		response_headers.push(format!("retry-after={retry_after}"));
-	}
-	if let Some(rate_remaining) = context.rate_remaining {
-		response_headers.push(format!("ratelimit-remaining={rate_remaining}"));
-	}
-	if let Some(rate_reset) = context.rate_reset {
-		response_headers.push(format!("ratelimit-reset={rate_reset}"));
-	}
-	if !response_headers.is_empty() {
-		push_detail_line(
-			&mut message,
-			"Response headers",
-			&response_headers.join(", "),
-		);
-	}
-
-	if let Some(api_error) = extract_error_message(context.body) {
-		push_detail_line(&mut message, "Response error", &api_error);
-	}
-	if let Some(hint) = request_failure_hint(
-		context.status,
-		context.body,
-		context.content_type,
-		context.retry_after,
-		context.rate_reset,
-		context.manifest,
-	) {
-		push_detail_line(&mut message, "Hint", &hint);
-	}
-	let snippet = summarize_body(context.body);
-	if !snippet.is_empty() {
-		push_detail_line(&mut message, "Body", &snippet);
-	}
-	message
-}
-
-fn format_payload_failure(
-	url: &str,
-	data_key: Option<&str>,
-	body: &str,
-	manifest: &crate::ClientManifest,
-	cause: &str,
-	stage: &str,
-) -> String {
-	let mut message = if stage == "parse" {
-		String::from("ToonLivre chapter payload was decrypted, but JSON parsing failed.")
-	} else {
-		String::from("ToonLivre chapter payload could not be decrypted.")
-	};
-	push_detail_line(&mut message, "URL", url);
-	push_detail_line(
-		&mut message,
-		"Data key",
-		&format!(
-			"{}={}",
-			manifest.decrypt.data_key_header,
-			data_key.unwrap_or("missing")
-		),
-	);
-	push_detail_line(&mut message, "Algorithm", &manifest.decrypt.algorithm);
-	push_detail_line(&mut message, "Cause", cause);
-	if stage == "parse" {
-		push_detail_line(
-			&mut message,
-			"Hint",
-			"A descriptografia funcionou, mas o formato JSON retornado mudou e precisa ser revisado.",
-		);
-	} else {
-		push_detail_line(
-			&mut message,
-			"Hint",
-			"A receita do manifesto para data key, algoritmo ou passphrase pode ter ficado desatualizada.",
-		);
-	}
-	let snippet = summarize_body(body);
-	if !snippet.is_empty() {
-		push_detail_line(
-			&mut message,
-			if stage == "parse" { "Payload" } else { "Body" },
-			&snippet,
-		);
-	}
-	message
-}
-
-fn request_failure_hint(
-	status: i32,
-	body: &str,
-	content_type: Option<&str>,
-	retry_after: Option<&str>,
-	rate_reset: Option<&str>,
-	manifest: &crate::ClientManifest,
-) -> Option<String> {
-	if status == 403 {
-		return Some(format!(
-			"O endpoint rejeitou a assinatura do manifesto ou a semente/token dinâmico. Confira `{}` e {}.",
-			manifest.request.signature_header,
-			describe_token_mirror(manifest)
-		));
-	}
-	if status == 429 {
-		if let Some(wait_seconds) = retry_after.or(rate_reset) {
-			return Some(format!(
-				"O site limitou as requisições. Aguarde {wait_seconds} segundo(s) antes de tentar novamente."
-			));
-		}
-		return Some(String::from(
-			"O site limitou as requisições. Aguarde alguns instantes antes de tentar novamente.",
-		));
-	}
-	if is_html_like_response(body, content_type) {
-		return Some(String::from(
-			"O site respondeu HTML/Cloudflare em vez de JSON. Pode ser um bloqueio temporário ou desafio anti-bot.",
-		));
-	}
-	if status >= 500 {
-		return Some(String::from(
-			"O ToonLivre respondeu com erro interno. Tente novamente mais tarde.",
-		));
-	}
-	None
-}
-
-fn describe_status(status: i32) -> &'static str {
-	match status {
-		400 => "Bad Request",
-		401 => "Unauthorized",
-		403 => "Forbidden",
-		404 => "Not Found",
-		429 => "Too Many Requests",
-		500 => "Internal Server Error",
-		502 => "Bad Gateway",
-		503 => "Service Unavailable",
-		504 => "Gateway Timeout",
-		_ => "Unexpected Response",
-	}
-}
-
-fn is_html_like_response(body: &str, content_type: Option<&str>) -> bool {
-	let content_type = content_type.unwrap_or_default().to_lowercase();
-	let normalized_body = body.trim().to_lowercase();
-	content_type.contains("text/html")
-		|| normalized_body.starts_with("<!doctype html")
-		|| normalized_body.starts_with("<html")
-		|| normalized_body.contains("cloudflare")
-		|| normalized_body.contains("cdn-cgi")
 }
 
 fn summarize_body(body: &str) -> String {
@@ -575,35 +341,6 @@ fn push_detail_line(message: &mut String, label: &str, value: &str) {
 	message.push_str(value);
 }
 
-fn decrypt_response_payload(
-	body: &str,
-	data_key: &str,
-	manifest: &crate::ClientManifest,
-) -> Result<String> {
-	source_log!(
-		"[toonlivre] decrypt_response_payload start data_key={} selector={} body_snippet={}",
-		data_key,
-		manifest.decrypt.payload_selector,
-		summarize_body(body)
-	);
-	let value: Value = serde_json::from_str(body)
-		.map_err(|err| AidokuError::Message(format!("JSON parse error: {err}")))?;
-	let encrypted_payload = value
-		.get(data_key)
-		.or_else(|| value.as_object().and_then(|object| object.values().next()))
-		.and_then(Value::as_str)
-		.ok_or_else(|| AidokuError::Message(String::from("Missing encrypted payload")))?;
-	source_log!(
-		"[toonlivre] decrypt_response_payload extracted key={} payload_len={}",
-		data_key,
-		encrypted_payload.len()
-	);
-	decrypt_cryptojs_rabbit(
-		encrypted_payload,
-		&current_decryption_passphrase_for_manifest(manifest),
-	)
-}
-
 fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<String> {
 	source_log!(
 		"[toonlivre] decrypt_cryptojs_rabbit start encrypted_len={} password={}",
@@ -618,12 +355,6 @@ fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<Strin
 	}
 	let salt = &raw[8..16];
 	let mut ciphertext = raw[16..].to_vec();
-	source_log!(
-		"[toonlivre] decrypt_cryptojs_rabbit decoded raw_len={} ciphertext_len={} salt={}",
-		raw.len(),
-		ciphertext.len(),
-		hex_lower_string(salt)
-	);
 	let key_iv = evp_bytes_to_key(password.as_bytes(), salt, 24);
 	let key: [u8; 16] = key_iv[..16]
 		.try_into()
@@ -633,12 +364,6 @@ fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<Strin
 		.map_err(|_| AidokuError::Message(String::from("Invalid Rabbit IV length")))?;
 	let mut cipher = Rabbit::new(&key.into(), &iv.into());
 	cipher.apply_keystream(&mut ciphertext);
-	source_log!(
-		"[toonlivre] decrypt_cryptojs_rabbit key={} iv={} ciphertext_after_len={}",
-		hex_lower_string(&key),
-		hex_lower_string(&iv),
-		ciphertext.len()
-	);
 	String::from_utf8(ciphertext)
 		.map_err(|err| AidokuError::Message(format!("UTF-8 decode error: {err}")))
 }
