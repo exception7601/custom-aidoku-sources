@@ -76,11 +76,11 @@ pub(crate) struct ApiMangaById {
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
 	#[serde(default)]
-	pub authors: Vec<String>,
+	pub authors: Option<String>,
 	#[serde(default)]
-	pub artists: Vec<String>,
+	pub artists: Option<String>,
 	#[serde(default)]
-	pub genres: Vec<String>,
+	pub genres: Option<String>,
 	#[serde(default)]
 	pub description: Option<String>,
 	#[serde(default)]
@@ -103,11 +103,11 @@ pub(crate) struct ApiReaderManga {
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
 	#[serde(default)]
-	pub authors: Vec<String>,
+	pub authors: Option<String>,
 	#[serde(default)]
-	pub artists: Vec<String>,
+	pub artists: Option<String>,
 	#[serde(default)]
-	pub genres: Vec<String>,
+	pub genres: Option<String>,
 	#[serde(default)]
 	pub description: Option<String>,
 	#[serde(default)]
@@ -130,11 +130,11 @@ pub(crate) struct ApiMangaBySlug {
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
 	#[serde(default)]
-	pub authors: Vec<String>,
+	pub authors: Option<String>,
 	#[serde(default)]
-	pub artists: Vec<String>,
+	pub artists: Option<String>,
 	#[serde(default)]
-	pub genres: Vec<String>,
+	pub genres: Option<String>,
 	#[serde(default)]
 	pub description: Option<String>,
 	#[serde(default)]
