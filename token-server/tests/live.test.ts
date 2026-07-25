@@ -3,7 +3,7 @@
 /**
  * Teste LIVE com API real do ToonLivre
  * 
- * ATENÇÃO: Este teste faz requests reais para:
+ * ATENCAO: Este teste faz requests reais para:
  * - Servidor de tokens (localhost:3000)
  * - API do ToonLivre (toonlivre.net)
  */
@@ -11,13 +11,13 @@
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 
 console.log(`
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║         🔴 TESTE LIVE - API REAL DO TOONLIVRE                ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
+---------------------------------------------------------------
+                                                               
+         TESTE LIVE - API REAL DO TOONLIVRE                
+                                                               
+---------------------------------------------------------------
 
-⚠️  Este teste faz requests REAIS para:
+ Este teste faz requests REAIS para:
    • Servidor: ${BASE_URL}
    • ToonLivre: https://toonlivre.net
 
@@ -27,44 +27,44 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('📋 1. Health Check')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log(' 1. Health Check')
+console.log('---------------------------------------------------------------')
 
 try {
   const response = await fetch(`${BASE_URL}/health`)
   const data = await response.json()
   
-  console.log(`✅ Servidor está online`)
+  console.log(` Servidor esta online`)
   console.log(`   Status: ${data.status}`)
   console.log(`   Uptime: ${Math.round(data.uptime)}s`)
 } catch (error) {
-  console.log(`❌ Servidor não está acessível`)
+  console.log(` Servidor nao esta acessivel`)
   console.log(`   Erro: ${(error as Error).message}`)
-  console.log(`\n💡 Certifique-se de que o servidor está rodando:`)
+  console.log(`\n Certifique-se de que o servidor esta rodando:`)
   console.log(`   bun run dev`)
   console.log(`   ou`)
   console.log(`   docker compose up -d`)
   process.exit(1)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('\n📋 2. Limpa Cache')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log('\n 2. Limpa Cache')
+console.log('---------------------------------------------------------------')
 
 try {
   const response = await fetch(`${BASE_URL}/api/cache/clear`, {
     method: 'POST',
   })
   const data = await response.json()
-  console.log(`✅ ${data.message}`)
+  console.log(` ${data.message}`)
 } catch (error) {
-  console.log(`❌ Erro ao limpar cache: ${(error as Error).message}`)
+  console.log(` Erro ao limpar cache: ${(error as Error).message}`)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('\n📋 3. Gera Tokens (primeira vez - sem cache)')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log('\n 3. Gera Tokens (primeira vez - sem cache)')
+console.log('---------------------------------------------------------------')
 
 let tokens: any
 
@@ -86,7 +86,7 @@ try {
 
   tokens = await response.json()
 
-  console.log(`✅ Tokens gerados com sucesso (${duration}ms)`)
+  console.log(` Tokens gerados com sucesso (${duration}ms)`)
   console.log(`   Session: ${tokens.session}`)
   console.log(`   Passphrase: ${tokens.passphrase}`)
   console.log(`   Strategy: ${tokens.strategy}`)
@@ -94,13 +94,13 @@ try {
   console.log(`   Cached: ${tokens.cached}`)
   console.log(`   Expires in: ${tokens.expiresIn}s`)
 } catch (error) {
-  console.log(`❌ Erro ao gerar tokens: ${(error as Error).message}`)
+  console.log(` Erro ao gerar tokens: ${(error as Error).message}`)
   process.exit(1)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('\n📋 4. Gera Tokens (segunda vez - com cache)')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log('\n 4. Gera Tokens (segunda vez - com cache)')
+console.log('---------------------------------------------------------------')
 
 try {
   const start = Date.now()
@@ -115,27 +115,27 @@ try {
 
   const data = await response.json()
 
-  console.log(`✅ Tokens retornados do cache (${duration}ms)`)
+  console.log(` Tokens retornados do cache (${duration}ms)`)
   console.log(`   Cached: ${data.cached}`)
   console.log(`   Session igual: ${data.session === tokens.session}`)
   console.log(`   Expires in: ${data.expiresIn}s`)
   
   if (duration > 100) {
-    console.log(`   ⚠️  Cache mais lento que esperado (${duration}ms > 100ms)`)
+    console.log(`    Cache mais lento que esperado (${duration}ms > 100ms)`)
   }
 } catch (error) {
-  console.log(`❌ Erro: ${(error as Error).message}`)
+  console.log(` Erro: ${(error as Error).message}`)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('\n📋 5. Testa Request Real para ToonLivre')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log('\n 5. Testa Request Real para ToonLivre')
+console.log('---------------------------------------------------------------')
 
 try {
-  // URL real de um capítulo do ToonLivre (se existir)
+  // URL real de um capitulo do ToonLivre (se existir)
   const testUrl = 'https://toonlivre.net/api/mangas/solo-leveling/chapters'
   
-  console.log(`🔄 Gerando tokens para: ${testUrl}`)
+  console.log(` Gerando tokens para: ${testUrl}`)
   
   const tokenResponse = await fetch(`${BASE_URL}/api/tokens`, {
     method: 'POST',
@@ -149,10 +149,10 @@ try {
 
   const tokenData = await tokenResponse.json()
   
-  console.log(`✅ Tokens gerados`)
+  console.log(` Tokens gerados`)
   console.log(`   Strategy: ${tokenData.strategy}`)
 
-  console.log(`\n🔄 Fazendo request para ToonLivre...`)
+  console.log(`\n Fazendo request para ToonLivre...`)
   
   const apiResponse = await fetch(testUrl, {
     headers: {
@@ -171,7 +171,7 @@ try {
     const dataKey = apiResponse.headers.get('x-toon-datakey')
     
     if (dataKey) {
-      console.log(`\n✅ Resposta está CRIPTOGRAFADA`)
+      console.log(`\n Resposta esta CRIPTOGRAFADA`)
       console.log(`   DataKey: ${dataKey}`)
       
       const jsonData = await apiResponse.json()
@@ -180,7 +180,7 @@ try {
       if (encryptedData) {
         console.log(`   Encrypted: ${encryptedData.substring(0, 50)}...`)
         
-        console.log(`\n🔄 Descriptografando...`)
+        console.log(`\n Descriptografando...`)
         
         const decryptResponse = await fetch(`${BASE_URL}/api/decrypt`, {
           method: 'POST',
@@ -195,7 +195,7 @@ try {
           const decryptData = await decryptResponse.json()
           const parsed = JSON.parse(decryptData.decrypted)
           
-          console.log(`✅ Dados descriptografados com sucesso!`)
+          console.log(` Dados descriptografados com sucesso!`)
           console.log(`   Tipo: ${typeof parsed}`)
           console.log(`   Keys: ${Object.keys(parsed).join(', ')}`)
           
@@ -203,32 +203,32 @@ try {
             console.log(`   Array length: ${parsed.length}`)
           }
         } else {
-          console.log(`❌ Erro ao descriptografar`)
+          console.log(` Erro ao descriptografar`)
         }
       }
     } else {
-      console.log(`\n✅ Resposta NÃO está criptografada`)
+      console.log(`\n Resposta NAO esta criptografada`)
       const data = await apiResponse.json()
       console.log(`   Tipo: ${typeof data}`)
       console.log(`   Keys: ${Object.keys(data).join(', ')}`)
     }
   } else {
-    console.log(`❌ Request falhou com status ${apiResponse.status}`)
+    console.log(` Request falhou com status ${apiResponse.status}`)
     const text = await apiResponse.text()
     console.log(`   Response: ${text.substring(0, 200)}`)
   }
 
 } catch (error) {
-  console.log(`❌ Erro no teste real: ${(error as Error).message}`)
-  console.log(`   (Isso pode ser esperado se a URL não existir ou API mudar)`)
+  console.log(` Erro no teste real: ${(error as Error).message}`)
+  console.log(`   (Isso pode ser esperado se a URL nao existir ou API mudar)`)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('\n📋 6. Testa TTL do Cache de Tokens')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log('\n 6. Testa TTL do Cache de Tokens')
+console.log('---------------------------------------------------------------')
 
 try {
-  console.log(`🔄 Gerando tokens...`)
+  console.log(` Gerando tokens...`)
   
   const response1 = await fetch(`${BASE_URL}/api/tokens`, {
     method: 'POST',
@@ -237,13 +237,13 @@ try {
   })
   const data1 = await response1.json()
   
-  console.log(`✅ Tokens gerados (cached: ${data1.cached}, expires in: ${data1.expiresIn}s)`)
+  console.log(` Tokens gerados (cached: ${data1.cached}, expires in: ${data1.expiresIn}s)`)
   console.log(`   Session: ${data1.session}`)
 
-  console.log(`\n⏳ Aguardando 3 segundos...`)
+  console.log(`\n Aguardando 3 segundos...`)
   await sleep(3000)
 
-  console.log(`\n🔄 Requisitando novamente...`)
+  console.log(`\n Requisitando novamente...`)
   const response2 = await fetch(`${BASE_URL}/api/tokens`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -251,41 +251,41 @@ try {
   })
   const data2 = await response2.json()
 
-  console.log(`✅ Tokens retornados (cached: ${data2.cached}, expires in: ${data2.expiresIn}s)`)
+  console.log(` Tokens retornados (cached: ${data2.cached}, expires in: ${data2.expiresIn}s)`)
   console.log(`   Session igual: ${data1.session === data2.session}`)
   console.log(`   TTL diminuiu: ${data1.expiresIn > data2.expiresIn}`)
 
 } catch (error) {
-  console.log(`❌ Erro: ${(error as Error).message}`)
+  console.log(` Erro: ${(error as Error).message}`)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-console.log('\n📋 7. Estatísticas Finais do Cache')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+// ---------------------------------------------------------------
+console.log('\n 7. Estatisticas Finais do Cache')
+console.log('---------------------------------------------------------------')
 
 try {
   const response = await fetch(`${BASE_URL}/api/cache/stats`)
   const data = await response.json()
   
-  console.log(`✅ Estatísticas:`)
+  console.log(` Estatisticas:`)
   console.log(`   Bundle: ${data.bundle}`)
   console.log(`   Tokens em cache: ${data.tokens}`)
 } catch (error) {
-  console.log(`❌ Erro: ${(error as Error).message}`)
+  console.log(` Erro: ${(error as Error).message}`)
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ---------------------------------------------------------------
 console.log('\n')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-console.log('  ✅ TESTE LIVE COMPLETO')
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+console.log('---------------------------------------------------------------')
+console.log('  TESTE LIVE COMPLETO')
+console.log('---------------------------------------------------------------')
 console.log(`
-  ✅ Servidor está funcionando
-  ✅ Geração de tokens funciona
-  ✅ Cache funciona (bundle + tokens)
-  ✅ TTL está configurado corretamente
-  ✅ Integração com ToonLivre testada
+  Servidor esta funcionando
+  Geracao de tokens funciona
+  Cache funciona (bundle + tokens)
+  TTL esta configurado corretamente
+  Integracao com ToonLivre testada
 
-  🎯 Servidor está PRONTO para produção!
+  Servidor esta PRONTO para producao!
 `)
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+console.log('---------------------------------------------------------------\n')
