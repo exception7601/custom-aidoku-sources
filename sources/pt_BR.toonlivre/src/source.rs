@@ -34,14 +34,14 @@ impl Source for ToonLivre {
 		page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let raw_query = query.clone();
-		let raw_page = page;
+		let _raw_query = query.clone();
+		let _raw_page = page;
 		let page = page.max(1);
 		source_log!(
 			"[toonlivre] get_search_manga_list start raw_page={} normalized_page={} query={:?}",
-			raw_page,
+			_raw_page,
 			page,
-			raw_query.as_deref()
+			_raw_query.as_deref()
 		);
 		let response = match query.map(|value| String::from(value.trim())) {
 			Some(query) if !query.is_empty() => search_response(&query, page)?,
@@ -301,9 +301,9 @@ fn apply_details_from_id(manga: &mut Manga, details: &ApiMangaById) {
 	manga.key = details.id.clone();
 	manga.title = details.title.clone();
 	manga.cover = details.cover_url.clone();
-	manga.authors = details.authors.as_deref().map(split_comma_values);
-	manga.artists = details.artists.as_deref().map(split_comma_values);
-	manga.tags = details.genres.as_deref().map(split_comma_values);
+	manga.authors = Some(details.authors.clone());
+	manga.artists = Some(details.artists.clone());
+	manga.tags = Some(details.genres.clone());
 	manga.description = merge_description(
 		details.alternative_title.as_deref(),
 		details.description.as_deref(),
@@ -328,9 +328,9 @@ fn apply_details_from_reader(
 		manga.key = details.id.clone();
 		manga.title = details.title.clone();
 		manga.cover = details.cover_url.clone();
-		manga.authors = details.authors.as_deref().map(split_comma_values);
-		manga.artists = details.artists.as_deref().map(split_comma_values);
-		manga.tags = details.genres.as_deref().map(split_comma_values);
+		manga.authors = Some(details.authors.clone());
+		manga.artists = Some(details.artists.clone());
+		manga.tags = Some(details.genres.clone());
 		manga.description = merge_description(
 			details.alternative_title.as_deref(),
 			details.description.as_deref(),
@@ -375,9 +375,9 @@ fn apply_details_from_slug(
 		manga.key = details.id.clone();
 		manga.title = details.title.clone();
 		manga.cover = details.cover_url.clone();
-		manga.authors = details.authors.as_deref().map(split_comma_values);
-		manga.artists = details.artists.as_deref().map(split_comma_values);
-		manga.tags = details.genres.as_deref().map(split_comma_values);
+		manga.authors = Some(details.authors.clone());
+		manga.artists = Some(details.artists.clone());
+		manga.tags = Some(details.genres.clone());
 		manga.description = merge_description(
 			details.alternative_title.as_deref(),
 			details.description.as_deref(),
@@ -400,14 +400,6 @@ fn apply_details_from_slug(
 				.collect(),
 		);
 	}
-}
-
-fn split_comma_values(input: &str) -> Vec<String> {
-	input
-		.split(',')
-		.map(|part| String::from(part.trim()))
-		.filter(|part| !part.is_empty())
-		.collect()
 }
 
 fn merge_description(alternative_title: Option<&str>, description: Option<&str>) -> Option<String> {

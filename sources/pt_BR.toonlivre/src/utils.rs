@@ -47,22 +47,21 @@ pub(crate) fn chapter_segment(value: &str) -> String {
 		return value;
 	}
 	if value.chars().all(|ch| ch.is_ascii_digit()) {
-		if let Ok(number) = value.parse::<i32>() {
-			if number < 100 {
-				return format!("{number:02}");
-			}
+		if let Ok(number) = value.parse::<i32>()
+			&& number < 100
+		{
+			return format!("{number:02}");
 		}
 		return value;
 	}
-	if let Some(stripped) = value.strip_prefix('0') {
-		if stripped
+	if let Some(stripped) = value.strip_prefix('0')
+		&& stripped
 			.chars()
 			.next()
 			.map(|ch| ch.is_ascii_digit())
 			.unwrap_or(false)
-		{
-			return String::from(stripped);
-		}
+	{
+		return String::from(stripped);
 	}
 	value
 }
@@ -113,8 +112,8 @@ pub(crate) fn slugify_title(title: &str) -> String {
 	while slug.ends_with('-') {
 		slug.pop();
 	}
-	if slug.starts_with("custom-") {
-		return format!("obra-{}", &slug[7..]);
+	if let Some(stripped) = slug.strip_prefix("custom-") {
+		return format!("obra-{}", stripped);
 	}
 	slug
 }
@@ -196,10 +195,10 @@ pub(crate) fn deep_link_result(url: &str) -> Option<DeepLinkResult> {
 }
 
 pub(crate) fn manga_slug_from_manga(manga: &Manga) -> Option<String> {
-	if let Some(url) = manga.url.as_deref() {
-		if let Some(slug) = manga_slug_from_url(url) {
-			return Some(slug);
-		}
+	if let Some(url) = manga.url.as_deref()
+		&& let Some(slug) = manga_slug_from_url(url)
+	{
+		return Some(slug);
 	}
 	let key = manga.key.trim();
 	if key.is_empty() || key.starts_with("obra-") {
@@ -235,10 +234,10 @@ pub(crate) fn chapter_key_or_number(chapter: &Chapter) -> Option<String> {
 	if !chapter.key.trim().is_empty() {
 		return Some(String::from(chapter.key.trim()));
 	}
-	if let Some(url) = chapter.url.as_deref() {
-		if let Some(value) = chapter_number_from_url(url) {
-			return Some(value);
-		}
+	if let Some(url) = chapter.url.as_deref()
+		&& let Some(value) = chapter_number_from_url(url)
+	{
+		return Some(value);
 	}
 	chapter.chapter_number.map(|value| {
 		let mut text = format!("{value}");

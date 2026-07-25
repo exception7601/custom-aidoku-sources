@@ -18,15 +18,12 @@ pub(crate) const BASE_URL: &str = "https://toonlivre.net";
 pub(crate) const ACCEPT_LANGUAGE: &str = "pt-BR,pt;q=0.9";
 
 mod api;
-mod manifest;
 mod source;
 mod token_server;
 mod utils;
 
 pub(crate) use api::*;
-pub(crate) use manifest::*;
 pub(crate) use source::ToonLivre;
-pub(crate) use token_server::*;
 pub(crate) use utils::*;
 
 register_source!(ToonLivre, DeepLinkHandler, Home, ImageRequestProvider);

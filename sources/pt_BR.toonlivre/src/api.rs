@@ -11,14 +11,10 @@ use rabbit::{
 	cipher::{KeyIvInit, StreamCipher},
 };
 use serde::Deserialize;
-use serde_json::Value;
 
-use crate::{
-	BASE_URL, percent_encode, token_server,
-};
+use crate::{percent_encode, token_server};
 
 const API_BASE: &str = "https://toonlivre.net/api";
-const ERROR_BODY_SNIPPET_LIMIT: usize = 220;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
@@ -76,11 +72,11 @@ pub(crate) struct ApiMangaById {
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
 	#[serde(default)]
-	pub authors: Option<String>,
+	pub authors: Vec<String>,
 	#[serde(default)]
-	pub artists: Option<String>,
+	pub artists: Vec<String>,
 	#[serde(default)]
-	pub genres: Option<String>,
+	pub genres: Vec<String>,
 	#[serde(default)]
 	pub description: Option<String>,
 	#[serde(default)]
@@ -103,11 +99,11 @@ pub(crate) struct ApiReaderManga {
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
 	#[serde(default)]
-	pub authors: Option<String>,
+	pub authors: Vec<String>,
 	#[serde(default)]
-	pub artists: Option<String>,
+	pub artists: Vec<String>,
 	#[serde(default)]
-	pub genres: Option<String>,
+	pub genres: Vec<String>,
 	#[serde(default)]
 	pub description: Option<String>,
 	#[serde(default)]
@@ -130,11 +126,11 @@ pub(crate) struct ApiMangaBySlug {
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
 	#[serde(default)]
-	pub authors: Option<String>,
+	pub authors: Vec<String>,
 	#[serde(default)]
-	pub artists: Option<String>,
+	pub artists: Vec<String>,
 	#[serde(default)]
-	pub genres: Option<String>,
+	pub genres: Vec<String>,
 	#[serde(default)]
 	pub description: Option<String>,
 	#[serde(default)]
@@ -161,19 +157,6 @@ pub(crate) struct ApiChapterDetails {
 	pub timestamp: i64,
 	#[serde(default, rename = "releaseDate")]
 	pub release_date: String,
-}
-
-struct RequestFailureContext<'a> {
-	url: &'a str,
-	status: i32,
-	body: &'a str,
-	manifest: &'a crate::ClientManifest,
-	signature_value: &'a str,
-	content_type: Option<&'a str>,
-	cf_ray: Option<&'a str>,
-	retry_after: Option<&'a str>,
-	rate_remaining: Option<&'a str>,
-	rate_reset: Option<&'a str>,
 }
 
 pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
@@ -230,115 +213,92 @@ where
 	T: serde::de::DeserializeOwned,
 {
 	source_log!("[toonlivre] request_json url={}", url);
-	let tokens_url = token_server::full_tokens_url().ok_or_else(|| {
-		AidokuError::Message(String::from("Failed to get tokens URL"))
-	})?;
+	let tokens_url = token_server::full_tokens_url()
+		.ok_or_else(|| AidokuError::Message(String::from("Failed to get tokens URL")))?;
 	let response = Request::post(&tokens_url)?
-		.body(serde_json::to_vec(&serde_json::json!({
-			"url": url
-		})).unwrap().as_slice())
+		.body(
+			serde_json::to_vec(&serde_json::json!({
+				"url": url
+			}))
+			.unwrap()
+			.as_slice(),
+		)
 		.header("content-type", "application/json")
 		.send()
 		.map_err(|e| AidokuError::Message(format!("Token server request failed: {:?}", e)))?;
-	
+
 	if response.status_code() != 200 {
-		bail!("ToonLivre request failed with status {}", response.status_code());
+		bail!(
+			"ToonLivre request failed with status {}",
+			response.status_code()
+		);
 	}
-	
+
 	let body = response.get_string().map_err(|e| {
 		AidokuError::Message(format!("Token server response body read failed: {:?}", e))
 	})?;
-	
+
 	let tokens: token_server::TokenServerResponse = serde_json::from_str(&body).map_err(|e| {
 		AidokuError::Message(format!("Token server response parse failed: {:?}", e))
 	})?;
-	
+
 	let headers = tokens.headers.ok_or_else(|| {
 		AidokuError::Message(String::from("Token server response missing headers"))
 	})?;
 	let passphrase = tokens.passphrase.ok_or_else(|| {
 		AidokuError::Message(String::from("Token server response missing passphrase"))
 	})?;
-	
-	let mut request = Request::get(url)?
+
+	let request = Request::get(url)?
 		.header("accept", "application/json, text/plain, */*")
+		.header(
+			"user-agent",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+		)
+		.header("accept-language", "pt-BR,pt;q=0.9")
+		.header("referer", "https://toonlivre.net/")
 		.header("x-toon-signature", &headers.signature)
 		.header("x-toon-verify", &headers.verify);
-	
+
 	let response = request.send().map_err(|error| {
 		AidokuError::Message(format!(
 			"ToonLivre request (with tokens) could not be sent.\nURL: {url}\nError: {error:?}"
 		))
 	})?;
-	
+
 	let status = response.status_code();
 	let body = response.get_string().map_err(|error| {
 		AidokuError::Message(format!(
 			"Failed to read ToonLivre response body.\nURL: {url}\nStatus: {status}\nError: {error:?}"
 		))
 	})?;
-	
+
 	if !(200..300).contains(&status) {
 		bail!("ToonLivre request failed with status {}", status);
 	}
-	
+
 	let body = if url.contains("/chapters/") {
 		source_log!("[toonlivre] decrypting chapter payload using token_server passphrase");
-		decrypt_cryptojs_rabbit(&body, &passphrase)?
+		let obj: serde_json::Map<String, serde_json::Value> =
+			serde_json::from_str(&body).map_err(|error| {
+				AidokuError::Message(format!("Failed to parse encrypted JSON container: {error}"))
+			})?;
+		let encrypted_val = obj.values().next().ok_or_else(|| {
+			AidokuError::Message(String::from("Encrypted JSON container is empty"))
+		})?;
+		let encrypted_str = encrypted_val.as_str().ok_or_else(|| {
+			AidokuError::Message(String::from("Encrypted JSON value is not a string"))
+		})?;
+		decrypt_cryptojs_rabbit(encrypted_str, &passphrase)?
 	} else {
 		body
 	};
-	
+
 	serde_json::from_str(&body).map_err(|error| {
 		AidokuError::Message(format!(
 			"Failed to parse ToonLivre JSON response (with tokens).\nURL: {url}\nError: {error}"
 		))
 	})
-}
-
-fn extract_error_message(body: &str) -> Option<String> {
-	let value: Value = serde_json::from_str(body).ok()?;
-	value
-		.get("error")
-		.or_else(|| value.get("message"))
-		.and_then(Value::as_str)
-		.map(String::from)
-}
-
-fn summarize_body(body: &str) -> String {
-	let trimmed = body.trim();
-	if trimmed.is_empty() {
-		return String::new();
-	}
-	let mut output = String::new();
-	let mut previous_was_space = false;
-	for ch in trimmed.chars() {
-		let normalized = if ch.is_whitespace() { ' ' } else { ch };
-		if normalized == ' ' {
-			if previous_was_space {
-				continue;
-			}
-			previous_was_space = true;
-		} else {
-			previous_was_space = false;
-		}
-		if output.len() >= ERROR_BODY_SNIPPET_LIMIT {
-			output.push_str("...");
-			break;
-		}
-		output.push(normalized);
-	}
-	output
-}
-
-fn push_detail_line(message: &mut String, label: &str, value: &str) {
-	if value.trim().is_empty() {
-		return;
-	}
-	message.push('\n');
-	message.push_str(label);
-	message.push_str(": ");
-	message.push_str(value);
 }
 
 fn decrypt_cryptojs_rabbit(encrypted_data: &str, password: &str) -> Result<String> {
@@ -397,6 +357,7 @@ fn evp_bytes_to_key(password: &[u8], salt: &[u8], output_len: usize) -> Vec<u8> 
 	output
 }
 
+#[allow(dead_code)]
 fn hex_lower_string(bytes: &[u8]) -> String {
 	let mut output = String::new();
 	for byte in bytes.iter() {
@@ -406,6 +367,7 @@ fn hex_lower_string(bytes: &[u8]) -> String {
 	output
 }
 
+#[allow(dead_code)]
 fn hex_lower_digit(value: u8) -> char {
 	match value {
 		0..=9 => (b'0' + value) as char,
