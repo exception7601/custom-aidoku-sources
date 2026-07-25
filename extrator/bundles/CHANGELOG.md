@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-25T06:13:49.000Z — `index-Cekp7BsG.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Cekp7BsG.js`
+- Saved folder: `bundle_v1784960029_index-Cekp7BsG_js`
+- SHA-256: `d5125f77790dc0dc800231d8122b0d2cc8ed0c70842322bfe87ec16ed9a7db51`
+- Bytes: `579527`
+- Previous bundle: `bundle_v1784791808_index-CTZYbjRh_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-23T07:30:08.000Z — `index-CTZYbjRh.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CTZYbjRh.js`
