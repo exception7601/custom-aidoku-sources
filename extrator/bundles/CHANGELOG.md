@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-26T20:53:56.000Z — `index-8fs_eD0f.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-8fs_eD0f.js`
+- Saved folder: `bundle_v1785099236_index-8fs_eD0f_js`
+- SHA-256: `324758250c0392a747506b48980b56bf1ad2c4678ab0d1f19ab1bca708fcc063`
+- Bytes: `580463`
+- Previous bundle: `bundle_v1785067218_index--3-dvw2p_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-26T12:00:18.000Z — `index--3-dvw2p.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index--3-dvw2p.js`
