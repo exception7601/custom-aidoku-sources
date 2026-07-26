@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-26T12:00:18.000Z — `index--3-dvw2p.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index--3-dvw2p.js`
+- Saved folder: `bundle_v1785067218_index--3-dvw2p_js`
+- SHA-256: `eef6af7d8fd3b3d7f2bf036fe5cd07da566f00fa7080699abda567c3c5098731`
+- Bytes: `580254`
+- Previous bundle: `bundle_v1784960029_index-Cekp7BsG_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-25T06:13:49.000Z — `index-Cekp7BsG.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-Cekp7BsG.js`
