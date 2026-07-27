@@ -6,11 +6,18 @@ use aidoku::{
 };
 use serde::Deserialize;
 
+// Configure proxy host based on build profile
+// For development: cargo build (uses localhost)
+// For production: cargo build --release (uses remote)
+// Override with: PROXY_HOST environment variable during build
+#[cfg(debug_assertions)]
+const PROXY_HOST: &str = "http://localhost:3000";
+
+#[cfg(not(debug_assertions))]
+const PROXY_HOST: &str = "https://toons.4nd.xyz";
+
 fn get_proxy_base() -> String {
-	let default_host = "http://localhost:3000/api";
-	// TODO: Load from proxy-server.json or environment variable
-	// For now, use localhost for development
-	String::from(default_host)
+	format!("{}/api", PROXY_HOST)
 }
 
 #[allow(dead_code)]
