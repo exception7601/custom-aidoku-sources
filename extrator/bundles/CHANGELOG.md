@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-27T06:59:34.000Z — `index-BnRo3rSG.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BnRo3rSG.js`
+- Saved folder: `bundle_v1785135574_index-BnRo3rSG_js`
+- SHA-256: `08928b81ba6b5c735eb233a5bed962d64e6bba0cf9d62f311a18da5517d97ee3`
+- Bytes: `510218`
+- Previous bundle: `bundle_v1785099236_index-8fs_eD0f_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-26T20:53:56.000Z — `index-8fs_eD0f.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-8fs_eD0f.js`
