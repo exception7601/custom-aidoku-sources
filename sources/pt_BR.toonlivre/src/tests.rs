@@ -35,7 +35,7 @@ fn helper_slugifies_titles_and_formats_chapters() {
 fn helper_parses_deep_links() {
 	let random_chapter = generate_random_chapter();
 	let chapter_url = format!("https://toonlivre.net/{}", random_chapter);
-	
+
 	match deep_link_result(SAMPLE_MANGA_URL) {
 		Some(DeepLinkResult::Manga { key }) => assert_eq!(key, SAMPLE_MANGA_SLUG),
 		_ => panic!("expected manga deep link"),
@@ -87,11 +87,11 @@ fn source_handles_deep_links() {
 	}
 }
 
-// Live integration tests (require proxy server running on localhost:3000)
+// Live integration tests (require proxy server running on localhost:4000)
 
 #[aidoku_test(live:test)]
 fn live_proxy_server_health() {
-	let result = aidoku::imports::net::Request::get("http://localhost:3000/health")
+	let result = aidoku::imports::net::Request::get("http://localhost:4000/health")
 		.and_then(|req| req.send());
 
 	if let Err(ref e) = result {

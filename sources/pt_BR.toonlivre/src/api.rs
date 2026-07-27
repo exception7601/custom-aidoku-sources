@@ -6,7 +6,7 @@ use aidoku::{
 };
 use serde::Deserialize;
 
-const PROXY_BASE: &str = "http://localhost:3000/api";
+const PROXY_BASE: &str = "http://localhost:4000/api";
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
@@ -154,7 +154,8 @@ pub(crate) struct ApiChapterDetails {
 pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
 	source_log!("[proxy] fetch_releases page={} limit={}", page, limit);
 	request_json(&format!(
-		"{PROXY_BASE}/releases?page={}&limit={}", page, limit
+		"{PROXY_BASE}/releases?page={}&limit={}",
+		page, limit
 	))
 }
 
@@ -166,7 +167,8 @@ pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiLis
 		limit
 	);
 	request_json(&format!(
-		"{PROXY_BASE}/search?q={}&page={}&limit={}", query, page, limit
+		"{PROXY_BASE}/search?q={}&page={}&limit={}",
+		query, page, limit
 	))
 }
 
@@ -197,9 +199,7 @@ pub(crate) fn fetch_chapter(manga_id: &str, chapter_id: &str) -> Result<ApiChapt
 	);
 	request_json(&format!(
 		"{}/manga/{}/chapters/{}",
-		PROXY_BASE,
-		manga_id,
-		chapter_id
+		PROXY_BASE, manga_id, chapter_id
 	))
 }
 
@@ -238,7 +238,6 @@ where
 		.get("data")
 		.ok_or_else(|| AidokuError::Message(String::from("Proxy response missing data field")))?;
 
-	serde_json::from_value(data.clone()).map_err(|error| {
-		AidokuError::Message(format!("Failed to parse proxy data: {error}"))
-	})
+	serde_json::from_value(data.clone())
+		.map_err(|error| AidokuError::Message(format!("Failed to parse proxy data: {error}")))
 }
