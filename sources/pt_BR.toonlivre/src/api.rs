@@ -8,6 +8,8 @@ use serde::Deserialize;
 
 fn get_proxy_base() -> String {
 	let default_host = "http://localhost:3000/api";
+	// TODO: Load from proxy-server.json or environment variable
+	// For now, use localhost for development
 	String::from(default_host)
 }
 
