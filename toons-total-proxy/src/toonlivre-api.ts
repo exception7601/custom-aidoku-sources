@@ -1,4 +1,5 @@
 import axios from "axios";
+import { tokenManager } from "./token-manager";
 
 const API_BASE = "https://toonlivre.net/api";
 
@@ -74,17 +75,46 @@ export interface ApiChapterDetails {
 async function requestDirect<T>(url: string): Promise<T> {
   console.log(`[api] requesting ${url}`);
 
-  const response = await axios.get<T>(url, {
-    headers: {
-      Accept: "application/json, text/plain, */*",
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-      "Accept-Language": "pt-BR,pt;q=0.9",
-      Referer: "https://toonlivre.net/",
-    },
-  });
+  // Check cache first
+  const cacheKey = `api:${url}`;
+  const cached = tokenManager.getFromCache(cacheKey);
+  if (cached) {
+    return cached as T;
+  }
 
-  return response.data;
+  try {
+    const startTime = Date.now();
+
+    // Get token for request
+    const tokenData = await tokenManager.getToken();
+
+    const response = await axios.get<T>(url, {
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9",
+        Referer: "https://toonlivre.net/",
+        Authorization: `Bearer ${tokenData.token}`,
+      },
+      timeout: 30000,
+    });
+
+    const requestTime = Date.now() - startTime;
+    console.log(`[api] request completed in ${requestTime}ms for ${url}`);
+
+    // Store in cache with request time
+    tokenManager.setCache(
+      cacheKey,
+      response.data,
+      requestTime,
+      tokenManager.REQUEST_CACHE_TTL,
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`[api] request failed for ${url}:`, error);
+    throw error;
+  }
 }
 
 export async function fetchReleases(
