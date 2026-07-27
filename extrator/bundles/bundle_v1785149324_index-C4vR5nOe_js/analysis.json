@@ -1,0 +1,24 @@
+{
+  "request": {
+    "signatureRules": []
+  },
+  "session": {
+    "cookieName": "toon_i",
+    "generator": {
+      "kind": "random-base36-concat",
+      "segments": [
+        {
+          "radix": 36,
+          "start": 2,
+          "end": 15
+        }
+      ]
+    }
+  },
+  "decrypt": {},
+  "snippets": {
+    "request": "",
+    "session": "",
+    "decrypt": ""
+  }
+}

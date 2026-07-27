@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-27T10:48:44.000Z — `index-C4vR5nOe.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-C4vR5nOe.js`
+- Saved folder: `bundle_v1785149324_index-C4vR5nOe_js`
+- SHA-256: `447b95135eb193a871b9ecc6ab9e8baa55331b381ad66ab5716c7dc161cb1240`
+- Bytes: `509667`
+- Previous bundle: `bundle_v1785135574_index-BnRo3rSG_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-27T06:59:34.000Z — `index-BnRo3rSG.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BnRo3rSG.js`
