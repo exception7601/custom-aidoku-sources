@@ -13,11 +13,3 @@ services:
     restart: unless-stopped
     # Descomente a linha abaixo quando o serviço WireGuard estiver configurado
     # network_mode: "service:wireguard"
-    # cap_add:
-    #   - NET_ADMIN
-    #   - SYS_MODULE
-    #   - NET_RAW
-    # devices:
-    #   - /dev/net/tun:/dev/net/tun
-    # volumes:
-    #   - ./wireguard:/etc/wireguard
