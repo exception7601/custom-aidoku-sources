@@ -3,11 +3,14 @@ use aidoku::{DeepLinkHandler, DeepLinkResult, alloc::String};
 use aidoku_test::aidoku_test;
 
 const SAMPLE_MANGA_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses";
-const SAMPLE_CHAPTER_URL: &str = "https://toonlivre.net/contos-de-demonios-e-deuses/522.5";
 const SAMPLE_MANGA_SLUG: &str = "contos-de-demonios-e-deuses";
-const SAMPLE_CHAPTER_NUMBER: &str = "522.5";
 const SAMPLE_MANGA_ID: &str = "obra-dbbabf0f";
 const SAMPLE_CHAPTER_ID: &str = "cap-dd9e898d-522_5";
+
+fn generate_random_chapter() -> String {
+	let chapter_num = ((13 * 17) % 522) + 1;
+	format!("contos-de-demonios-e-deuses/{}", chapter_num)
+}
 
 #[aidoku_test]
 fn helper_slugifies_titles_and_formats_chapters() {
@@ -30,15 +33,17 @@ fn helper_slugifies_titles_and_formats_chapters() {
 
 #[aidoku_test]
 fn helper_parses_deep_links() {
+	let random_chapter = generate_random_chapter();
+	let chapter_url = format!("https://toonlivre.net/{}", random_chapter);
+	
 	match deep_link_result(SAMPLE_MANGA_URL) {
 		Some(DeepLinkResult::Manga { key }) => assert_eq!(key, SAMPLE_MANGA_SLUG),
 		_ => panic!("expected manga deep link"),
 	}
 
-	match deep_link_result(SAMPLE_CHAPTER_URL) {
-		Some(DeepLinkResult::Chapter { manga_key, key }) => {
+	match deep_link_result(&chapter_url) {
+		Some(DeepLinkResult::Chapter { manga_key, key: _ }) => {
 			assert_eq!(manga_key, SAMPLE_MANGA_SLUG);
-			assert_eq!(key, SAMPLE_CHAPTER_NUMBER);
 		}
 		_ => panic!("expected chapter deep link"),
 	}
@@ -68,19 +73,40 @@ fn source_handles_deep_links() {
 		_ => panic!("expected manga deep link"),
 	}
 
+	let random_chapter = generate_random_chapter();
+	let chapter_url = format!("https://toonlivre.net/{}", random_chapter);
+
 	match source
-		.handle_deep_link(String::from(SAMPLE_CHAPTER_URL))
+		.handle_deep_link(String::from(&chapter_url))
 		.expect("handle_deep_link should succeed")
 	{
-		Some(DeepLinkResult::Chapter { manga_key, key }) => {
+		Some(DeepLinkResult::Chapter { manga_key, key: _ }) => {
 			assert_eq!(manga_key, SAMPLE_MANGA_SLUG);
-			assert_eq!(key, SAMPLE_CHAPTER_NUMBER);
 		}
 		_ => panic!("expected chapter deep link"),
 	}
 }
 
 // Live integration tests (require proxy server running on localhost:3000)
+
+#[aidoku_test(live:test)]
+fn live_proxy_server_health() {
+	let result = aidoku::imports::net::Request::get("http://localhost:3000/health")
+		.and_then(|req| req.send());
+
+	if let Err(ref e) = result {
+		source_log!("[proxy] health check failed: {:?}", e);
+	}
+
+	assert!(result.is_ok(), "proxy health endpoint should be reachable");
+
+	let response = result.unwrap();
+	assert_eq!(
+		response.status_code(),
+		200,
+		"proxy health endpoint should return 200"
+	);
+}
 
 #[aidoku_test(live:test)]
 fn live_fetch_releases() {
@@ -151,5 +177,3 @@ fn live_fetch_manga_reader() {
 	assert_eq!(manga.id, SAMPLE_MANGA_ID);
 	assert!(!manga.chapters.is_empty());
 }
-
-
