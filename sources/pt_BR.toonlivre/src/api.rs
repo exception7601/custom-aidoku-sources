@@ -6,7 +6,10 @@ use aidoku::{
 };
 use serde::Deserialize;
 
-const PROXY_BASE: &str = "http://localhost:4000/api";
+fn get_proxy_base() -> String {
+	let default_host = "http://localhost:3000/api";
+	String::from(default_host)
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
@@ -153,9 +156,10 @@ pub(crate) struct ApiChapterDetails {
 
 pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
 	source_log!("[proxy] fetch_releases page={} limit={}", page, limit);
+	let proxy_base = get_proxy_base();
 	request_json(&format!(
-		"{PROXY_BASE}/releases?page={}&limit={}",
-		page, limit
+		"{}/releases?page={}&limit={}",
+		proxy_base, page, limit
 	))
 }
 
@@ -166,27 +170,31 @@ pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiLis
 		page,
 		limit
 	);
+	let proxy_base = get_proxy_base();
 	request_json(&format!(
-		"{PROXY_BASE}/search?q={}&page={}&limit={}",
-		query, page, limit
+		"{}/search?q={}&page={}&limit={}",
+		proxy_base, query, page, limit
 	))
 }
 
 pub(crate) fn fetch_manga_by_id(id: &str) -> Result<ApiMangaById> {
 	source_log!("[proxy] fetch_manga_by_id id={}", id);
-	request_json(&format!("{}/manga/{}", PROXY_BASE, id))
+	let proxy_base = get_proxy_base();
+	request_json(&format!("{}/manga/{}", proxy_base, id))
 }
 
 pub(crate) fn fetch_manga_reader(id: &str) -> Result<ApiReaderManga> {
 	source_log!("[proxy] fetch_manga_reader id={}", id);
-	request_json(&format!("{}/manga/{}/reader", PROXY_BASE, id))
+	let proxy_base = get_proxy_base();
+	request_json(&format!("{}/manga/{}/reader", proxy_base, id))
 }
 
 pub(crate) fn fetch_manga_by_slug(slug: &str) -> Result<ApiMangaBySlug> {
 	source_log!("[proxy] fetch_manga_by_slug slug={}", slug);
+	let proxy_base = get_proxy_base();
 	request_json(&format!(
 		"{}/manga-by-slug/{}",
-		PROXY_BASE,
+		proxy_base,
 		slug.trim_matches('/')
 	))
 }
@@ -197,9 +205,10 @@ pub(crate) fn fetch_chapter(manga_id: &str, chapter_id: &str) -> Result<ApiChapt
 		manga_id,
 		chapter_id
 	);
+	let proxy_base = get_proxy_base();
 	request_json(&format!(
 		"{}/manga/{}/chapters/{}",
-		PROXY_BASE, manga_id, chapter_id
+		proxy_base, manga_id, chapter_id
 	))
 }
 
