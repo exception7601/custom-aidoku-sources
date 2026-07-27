@@ -1,7 +1,50 @@
 import axios from "axios";
-import { tokenManager } from "./token-manager";
 
 const API_BASE = "https://toonlivre.net/api";
+
+// Feature flag for encryption fallback
+let USE_ENCRYPTION = false;
+let ENCRYPTION_LAST_CHECK = 0;
+const ENCRYPTION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+// Simple cache with TTL
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+  cachedAt: number;
+}
+
+class SimpleCache {
+  private cache: Map<string, CacheEntry<unknown>> = new Map();
+  private readonly TTL = 20 * 1000; // 20 seconds
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
+    if (!entry) return null;
+
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  set<T>(key: string, data: T): void {
+    const now = Date.now();
+    this.cache.set(key, {
+      data,
+      expiresAt: now + this.TTL,
+      cachedAt: now,
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const cache = new SimpleCache();
 
 export interface ApiChapter {
   id: string;
@@ -72,21 +115,32 @@ export interface ApiChapterDetails {
   releaseDate?: string;
 }
 
+/**
+ * Generate session ID (toon_i cookie)
+ */
+function generateSession(): string {
+  return Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * Request with encryption fallback
+ * Tries direct access first, falls back to token-server if it fails
+ */
 async function requestDirect<T>(url: string): Promise<T> {
   console.log(`[api] requesting ${url}`);
 
   // Check cache first
   const cacheKey = `api:${url}`;
-  const cached = tokenManager.getFromCache(cacheKey);
+  const cached = cache.get<T>(cacheKey);
   if (cached) {
-    return cached as T;
+    console.log(`[cache] hit for ${url}`);
+    return cached;
   }
 
+  // Try direct access (no encryption)
   try {
     const startTime = Date.now();
-
-    // Get token for request
-    const tokenData = await tokenManager.getToken();
+    const session = generateSession();
 
     const response = await axios.get<T>(url, {
       headers: {
@@ -95,24 +149,126 @@ async function requestDirect<T>(url: string): Promise<T> {
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
         "Accept-Language": "pt-BR,pt;q=0.9",
         Referer: "https://toonlivre.net/",
-        Authorization: `Bearer ${tokenData.token}`,
+        Origin: "https://toonlivre.net",
+        Cookie: `toon_i=${session}`,
       },
       timeout: 30000,
+      validateStatus: (status) => status < 500, // Don't throw on 4xx
     });
+
+    // Check if response indicates encryption is needed
+    const responseData = response.data as any;
+    const needsEncryption =
+      response.status === 401 ||
+      response.status === 403 ||
+      (responseData?.error &&
+        (responseData.error.includes("token") ||
+          responseData.error.includes("signature") ||
+          responseData.error.includes("unauthorized")));
+
+    if (needsEncryption && !USE_ENCRYPTION) {
+      console.log(
+        `[api] Direct access failed for ${url}, enabling encryption fallback`,
+      );
+      USE_ENCRYPTION = true;
+      ENCRYPTION_LAST_CHECK = Date.now();
+
+      // Retry with encryption
+      return requestWithEncryption<T>(url);
+    }
+
+    if (response.status >= 400) {
+      throw new Error(`Request failed with status code ${response.status}`);
+    }
 
     const requestTime = Date.now() - startTime;
     console.log(`[api] request completed in ${requestTime}ms for ${url}`);
 
-    // Store in cache with request time
-    tokenManager.setCache(
-      cacheKey,
-      response.data,
-      requestTime,
-      tokenManager.REQUEST_CACHE_TTL,
-    );
+    // Store in cache
+    cache.set(cacheKey, response.data);
     return response.data;
   } catch (error) {
+    // Check if we should try encryption fallback
+    const now = Date.now();
+    if (!USE_ENCRYPTION && now - ENCRYPTION_LAST_CHECK > ENCRYPTION_CHECK_INTERVAL) {
+      console.log(
+        `[api] Direct access error for ${url}, trying encryption fallback`,
+      );
+      ENCRYPTION_LAST_CHECK = now;
+
+      try {
+        return await requestWithEncryption<T>(url);
+      } catch (encryptionError) {
+        console.error(
+          `[api] Encryption fallback also failed:`,
+          encryptionError,
+        );
+        throw error; // Throw original error
+      }
+    }
+
     console.error(`[api] request failed for ${url}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Request with encryption (using token-server)
+ */
+async function requestWithEncryption<T>(url: string): Promise<T> {
+  console.log(`[api] using encryption for ${url}`);
+
+  const TOKEN_SERVER = process.env.TOKEN_SERVER_HOST || "http://localhost:3001";
+
+  try {
+    // Get tokens from token-server
+    const tokenResponse = await axios.post(
+      `${TOKEN_SERVER}/api/tokens`,
+      { url },
+      { timeout: 10000 },
+    );
+
+    const { headers, passphrase } = tokenResponse.data;
+
+    // Make request with encryption headers
+    const response = await axios.get(url, {
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9",
+        Referer: "https://toonlivre.net/",
+        Origin: "https://toonlivre.net",
+        "x-toon-signature": headers["x-toon-signature"],
+        "x-toon-verify": headers["x-toon-verify"],
+      },
+      timeout: 30000,
+    });
+
+    // Check if response is encrypted
+    const data = response.data as any;
+    if (data && typeof data === "object" && data.encrypted) {
+      console.log(`[api] decrypting response from ${url}`);
+
+      // Decrypt using passphrase
+      const decryptResponse = await axios.post(
+        `${TOKEN_SERVER}/api/decrypt`,
+        {
+          encrypted: data.encrypted,
+          passphrase,
+        },
+        { timeout: 10000 },
+      );
+
+      return JSON.parse(decryptResponse.data.decrypted) as T;
+    }
+
+    console.log(`[api] encryption successful, switching to encrypted mode`);
+    USE_ENCRYPTION = true;
+
+    return response.data;
+  } catch (error) {
+    console.error(`[api] encryption request failed:`, error);
     throw error;
   }
 }
@@ -157,4 +313,34 @@ export async function fetchChapterDetails(
 ): Promise<ApiChapterDetails> {
   const url = `${API_BASE}/mangas/${mangaId}/chapters/${chapterId}`;
   return requestDirect<ApiChapterDetails>(url);
+}
+
+/**
+ * Get current encryption status
+ */
+export function getEncryptionStatus(): {
+  enabled: boolean;
+  lastCheck: number;
+} {
+  return {
+    enabled: USE_ENCRYPTION,
+    lastCheck: ENCRYPTION_LAST_CHECK,
+  };
+}
+
+/**
+ * Manually enable/disable encryption mode
+ */
+export function setEncryptionMode(enabled: boolean): void {
+  USE_ENCRYPTION = enabled;
+  ENCRYPTION_LAST_CHECK = Date.now();
+  console.log(`[api] Encryption mode ${enabled ? "enabled" : "disabled"}`);
+}
+
+/**
+ * Clear API cache
+ */
+export function clearCache(): void {
+  cache.clear();
+  console.log("[api] Cache cleared");
 }

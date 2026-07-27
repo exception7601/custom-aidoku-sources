@@ -2,8 +2,8 @@
 #
 # ToonLivre Integration Tests
 #
-# Starts token server, runs live WASM tests, then stops the server.
-# Tests marked with live:test require the token server running.
+# Starts proxy server, runs live WASM tests, then stops the server.
+# Tests marked with live:test require the proxy server running.
 #
 
 set -euo pipefail
@@ -17,8 +17,8 @@ NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-TOKEN_SERVER_DIR="$REPO_ROOT/token-server"
-TOKEN_SERVER_PID=""
+PROXY_DIR="$REPO_ROOT/toons-total-proxy"
+PROXY_PID=""
 
 log_info() {
 	echo -e "${BLUE}[INFO]${NC} $1"
@@ -37,11 +37,11 @@ log_warning() {
 }
 
 cleanup() {
-	if [[ -n "$TOKEN_SERVER_PID" ]]; then
-		log_info "Stopping token server (PID: $TOKEN_SERVER_PID)..."
-		kill "$TOKEN_SERVER_PID" 2>/dev/null || true
-		wait "$TOKEN_SERVER_PID" 2>/dev/null || true
-		log_success "Token server stopped"
+	if [[ -n "$PROXY_PID" ]]; then
+		log_info "Stopping proxy server (PID: $PROXY_PID)..."
+		kill "$PROXY_PID" 2>/dev/null || true
+		wait "$PROXY_PID" 2>/dev/null || true
+		log_success "Proxy server stopped"
 	fi
 }
 
@@ -63,64 +63,69 @@ check_dependencies() {
 	log_success "All dependencies found"
 }
 
-check_token_server() {
-	if curl -s http://localhost:3000/health >/dev/null 2>&1; then
+check_proxy() {
+	if curl -s http://localhost:4000/health >/dev/null 2>&1; then
 		return 0
 	fi
 	return 1
 }
 
-start_token_server() {
-	log_info "Checking if token server is already running..."
+start_proxy() {
+	log_info "Checking if proxy server is already running..."
 
-	if check_token_server; then
-		log_warning "Token server already running, skipping start"
+	if check_proxy; then
+		log_warning "Proxy server already running, skipping start"
 		return 0
 	fi
 
-	log_info "Starting token server..."
+	log_info "Starting proxy server..."
 
-	if [[ ! -d "$TOKEN_SERVER_DIR" ]]; then
-		log_error "Token server directory not found: $TOKEN_SERVER_DIR"
+	if [[ ! -d "$PROXY_DIR" ]]; then
+		log_error "Proxy directory not found: $PROXY_DIR"
 		exit 1
 	fi
 
-	cd "$TOKEN_SERVER_DIR"
+	cd "$PROXY_DIR"
 
 	if [[ ! -d "node_modules" ]]; then
-		log_info "Installing token server dependencies..."
+		log_info "Installing proxy server dependencies..."
 		bun install
 	fi
 
 	# Start server in background, redirect output to log file
-	bun run src/server.ts >"$TOKEN_SERVER_DIR/server.log" 2>&1 &
-	TOKEN_SERVER_PID=$!
+	PORT=4000 bun run src/index.ts >"$PROXY_DIR/server.log" 2>&1 &
+	PROXY_PID=$!
 
-	log_info "Token server starting (PID: $TOKEN_SERVER_PID)..."
+	log_info "Proxy server starting (PID: $PROXY_PID)..."
 
 	# Wait for server to be ready
 	local max_attempts=30
 	local attempt=0
 	while [[ $attempt -lt $max_attempts ]]; do
-		if check_token_server; then
-			log_success "Token server is ready"
+		if check_proxy; then
+			log_success "Proxy server is ready"
+			
+			# Show encryption status
+			local enc_status=$(curl -s http://localhost:4000/health | grep -o '"enabled":[^,}]*' | cut -d':' -f2)
+			log_info "Encryption mode: $enc_status"
+			
 			return 0
 		fi
 		((attempt++))
 		sleep 1
 	done
 
-	log_error "Token server failed to start within ${max_attempts}s"
-	log_info "Check logs at: $TOKEN_SERVER_DIR/server.log"
+	log_error "Proxy server failed to start within ${max_attempts}s"
+	log_info "Check logs at: $PROXY_DIR/server.log"
 	exit 1
 }
 
 run_cargo_tests() {
-	log_info "Running cargo tests with dev-server feature (including live:test)..."
+	log_info "Running cargo tests (including live:test)..."
 
 	cd "$SCRIPT_DIR"
 
-	if cargo test --lib --features dev-server 2>&1 | tee /tmp/toonlivre-test-output.log; then
+	if cargo test --lib 2>&1 | tee /tmp/toonlivre-test-output.log; then
 		log_success "All tests passed"
 		return 0
 	else
@@ -136,19 +141,25 @@ show_test_summary() {
 	if [[ -f /tmp/toonlivre-test-output.log ]]; then
 		# Extract test results
 		grep "test result:" /tmp/toonlivre-test-output.log || true
+		echo ""
+		
+		# Show proxy stats if available
+		log_info "Proxy statistics:"
+		curl -s http://localhost:4000/api/logs/stats | grep -E '"total"|"errors"|"avgResponseTime"' || true
 	fi
 }
 
 main() {
 	echo "================================================"
 	echo "ToonLivre Integration Tests (WASM Environment)"
+	echo "Using Proxy Server v2.0.0"
 	echo "================================================"
 	echo ""
 
 	check_dependencies
 	echo ""
 
-	start_token_server
+	start_proxy
 	echo ""
 
 	local exit_code=0
