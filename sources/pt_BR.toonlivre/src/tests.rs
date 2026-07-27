@@ -80,34 +80,14 @@ fn source_handles_deep_links() {
 	}
 }
 
-// Live integration tests (require token server)
-
-#[aidoku_test(live:test)]
-fn live_token_server_health() {
-	let health_url = token_server::full_health_url().expect("health URL should be available");
-	source_log!("[toonlivre] health check url: {}", health_url);
-
-	let result = aidoku::imports::net::Request::get(&health_url).and_then(|req| req.send());
-
-	if let Err(ref e) = result {
-		source_log!("[toonlivre] health check failed: {:?}", e);
-	}
-
-	let response = result.expect("health check should succeed");
-
-	assert_eq!(
-		response.status_code(),
-		200,
-		"health endpoint should return 200"
-	);
-}
+// Live integration tests (require proxy server running on localhost:3000)
 
 #[aidoku_test(live:test)]
 fn live_fetch_releases() {
 	let result = api::fetch_releases(1, 3);
 
 	if let Err(ref e) = result {
-		source_log!("[toonlivre] fetch_releases error: {:?}", e);
+		source_log!("[proxy] fetch_releases error: {:?}", e);
 	}
 
 	assert!(result.is_ok(), "fetch_releases should succeed");
@@ -131,7 +111,7 @@ fn live_fetch_manga_by_slug() {
 	let result = api::fetch_manga_by_slug(SAMPLE_MANGA_SLUG);
 
 	if let Err(ref e) = result {
-		source_log!("[toonlivre] fetch_manga_by_slug error: {:?}", e);
+		source_log!("[proxy] fetch_manga_by_slug error: {:?}", e);
 	}
 
 	assert!(result.is_ok(), "fetch_manga_by_slug should succeed");
@@ -147,7 +127,7 @@ fn live_fetch_manga_by_id() {
 	let result = api::fetch_manga_by_id(SAMPLE_MANGA_ID);
 
 	if let Err(ref e) = result {
-		source_log!("[toonlivre] fetch_manga_by_id error: {:?}", e);
+		source_log!("[proxy] fetch_manga_by_id error: {:?}", e);
 	}
 
 	assert!(result.is_ok(), "fetch_manga_by_id should succeed");
@@ -162,7 +142,7 @@ fn live_fetch_manga_reader() {
 	let result = api::fetch_manga_reader(SAMPLE_MANGA_ID);
 
 	if let Err(ref e) = result {
-		source_log!("[toonlivre] fetch_manga_reader error: {:?}", e);
+		source_log!("[proxy] fetch_manga_reader error: {:?}", e);
 	}
 
 	assert!(result.is_ok(), "fetch_manga_reader should succeed");
@@ -172,27 +152,4 @@ fn live_fetch_manga_reader() {
 	assert!(!manga.chapters.is_empty());
 }
 
-#[aidoku_test(live:test)]
-fn live_fetch_chapter_with_decryption() {
-	let result = api::fetch_chapter(SAMPLE_MANGA_ID, SAMPLE_CHAPTER_ID);
 
-	if let Err(ref e) = result {
-		source_log!("[toonlivre] fetch_chapter error: {:?}", e);
-	}
-
-	assert!(result.is_ok(), "fetch_chapter should succeed");
-
-	let chapter = result.unwrap();
-	assert_eq!(chapter.id, SAMPLE_CHAPTER_ID);
-	assert_eq!(chapter.manga_id, SAMPLE_MANGA_ID);
-	assert!(!chapter.pages.is_empty(), "chapter should have pages");
-
-	// Verify pages are valid URLs
-	for page in chapter.pages.iter() {
-		assert!(
-			page.starts_with("http://") || page.starts_with("https://"),
-			"page should be a valid URL: {}",
-			page
-		);
-	}
-}

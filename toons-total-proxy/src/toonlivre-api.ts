@@ -1,5 +1,4 @@
 import axios from "axios";
-import { tokenServer } from "./token-server";
 
 const API_BASE = "https://toonlivre.net/api";
 
@@ -72,14 +71,8 @@ export interface ApiChapterDetails {
   releaseDate?: string;
 }
 
-async function requestWithTokens<T>(url: string): Promise<T> {
+async function requestDirect<T>(url: string): Promise<T> {
   console.log(`[api] requesting ${url}`);
-
-  const tokens = await tokenServer.getTokens(url);
-
-  if (!tokens.headers) {
-    throw new Error("Failed to get required headers from token server");
-  }
 
   const response = await axios.get<T>(url, {
     headers: {
@@ -88,8 +81,6 @@ async function requestWithTokens<T>(url: string): Promise<T> {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
       "Accept-Language": "pt-BR,pt;q=0.9",
       Referer: "https://toonlivre.net/",
-      "x-toon-signature": tokens.headers["x-toon-signature"],
-      "x-toon-verify": tokens.headers["x-toon-verify"],
     },
   });
 
@@ -101,7 +92,7 @@ export async function fetchReleases(
   limit = 48,
 ): Promise<ApiListResponse> {
   const url = `${API_BASE}/mangas/releases?page=${page}&limit=${limit}`;
-  return requestWithTokens<ApiListResponse>(url);
+  return requestDirect<ApiListResponse>(url);
 }
 
 export async function searchMangas(
@@ -111,23 +102,23 @@ export async function searchMangas(
 ): Promise<ApiListResponse> {
   const encoded = encodeURIComponent(query.trim());
   const url = `${API_BASE}/mangas/search?q=${encoded}&page=${page}&limit=${limit}&sortBy=updated&sortOrder=desc`;
-  return requestWithTokens<ApiListResponse>(url);
+  return requestDirect<ApiListResponse>(url);
 }
 
 export async function fetchMangaById(id: string): Promise<ApiMangaById> {
   const url = `${API_BASE}/mangas/${id}`;
-  return requestWithTokens<ApiMangaById>(url);
+  return requestDirect<ApiMangaById>(url);
 }
 
 export async function fetchMangaReader(id: string): Promise<ApiReaderManga> {
   const url = `${API_BASE}/mangas/${id}/reader`;
-  return requestWithTokens<ApiReaderManga>(url);
+  return requestDirect<ApiReaderManga>(url);
 }
 
 export async function fetchMangaBySlug(slug: string): Promise<ApiMangaById> {
   const encoded = encodeURIComponent(slug.trim().replace(/^\/|\/$/g, ""));
   const url = `${API_BASE}/manga-by-slug/${encoded}`;
-  return requestWithTokens<ApiMangaById>(url);
+  return requestDirect<ApiMangaById>(url);
 }
 
 export async function fetchChapterDetails(
@@ -135,5 +126,5 @@ export async function fetchChapterDetails(
   chapterId: string,
 ): Promise<ApiChapterDetails> {
   const url = `${API_BASE}/mangas/${mangaId}/chapters/${chapterId}`;
-  return requestWithTokens<ApiChapterDetails>(url);
+  return requestDirect<ApiChapterDetails>(url);
 }

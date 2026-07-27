@@ -41,7 +41,7 @@ class TokenServerClient {
 
   constructor() {
     this.config = {
-      host: process.env.TOKEN_SERVER_HOST || "https://toons.4nd.xyz",
+      host: process.env.TOKEN_SERVER_HOST || "http://localhost:3001",
       endpoints: {
         tokens: "/api/tokens",
         health: "/health",

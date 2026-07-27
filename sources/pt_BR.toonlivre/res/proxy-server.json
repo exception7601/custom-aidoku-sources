@@ -1,0 +1,21 @@
+{
+  "name": "Toons Total Proxy",
+  "host": "https://toons.4nd.xyz",
+  "version": "1.1.0",
+  "endpoints": {
+    "releases": "/api/releases",
+    "search": "/api/search",
+    "manga": "/api/manga",
+    "mangaReader": "/api/manga/:id/reader",
+    "mangaBySlug": "/api/manga-by-slug",
+    "chapterPages": "/api/manga/:id/chapters/:chapterId"
+  },
+  "timeout": {
+    "connect": 10,
+    "request": 30
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 20
+  }
+}
