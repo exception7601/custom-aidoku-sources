@@ -13,8 +13,8 @@ use serde::Deserialize;
 fn get_proxy_base() -> String {
 	#[cfg(test)]
 	{
-		// Tests always use localhost
-		String::from("http://localhost:3000/api")
+		// Tests always use localhost on port 4000
+		String::from("http://localhost:4000/api")
 	}
 
 	#[cfg(not(test))]

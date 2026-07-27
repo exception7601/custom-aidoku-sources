@@ -150,8 +150,8 @@ app.get("/api/manga/:id/chapters/:chapterId", async ({ params }) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log("[proxy] listening on http://localhost:3000");
+app.listen({ port: 4000, hostname: "0.0.0.0" }, () => {
+  console.log("[proxy] listening on http://0.0.0.0:4000");
 });
 
 export default app;

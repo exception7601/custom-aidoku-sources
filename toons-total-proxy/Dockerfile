@@ -19,8 +19,8 @@ COPY --from=prerelease /app/node_modules node_modules
 COPY --from=prerelease /app/src src
 COPY --from=prerelease /app/tsconfig.json .
 
-EXPOSE 3000
+EXPOSE 4000
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=4000
 
 CMD ["bun", "run", "src/index.ts"]
