@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getAuthTokens, decryptData, clearTokenCache } from "./crypto";
 
 const API_BASE = "https://toonlivre.net/api";
 
@@ -213,22 +214,14 @@ async function requestDirect<T>(url: string): Promise<T> {
 }
 
 /**
- * Request with encryption (using token-server)
+ * Request with encryption (using built-in crypto with bundle execution)
  */
 async function requestWithEncryption<T>(url: string): Promise<T> {
   console.log(`[api] using encryption for ${url}`);
 
-  const TOKEN_SERVER = process.env.TOKEN_SERVER_HOST || "http://localhost:3001";
-
   try {
-    // Get tokens from token-server
-    const tokenResponse = await axios.post(
-      `${TOKEN_SERVER}/api/tokens`,
-      { url },
-      { timeout: 10000 },
-    );
-
-    const { headers, passphrase } = tokenResponse.data;
+    // Get authentication tokens and passphrase from bundle execution
+    const { signature, verify, session } = await getAuthTokens();
 
     // Make request with encryption headers
     const response = await axios.get(url, {
@@ -239,28 +232,25 @@ async function requestWithEncryption<T>(url: string): Promise<T> {
         "Accept-Language": "pt-BR,pt;q=0.9",
         Referer: "https://toonlivre.net/",
         Origin: "https://toonlivre.net",
-        "x-toon-signature": headers["x-toon-signature"],
-        "x-toon-verify": headers["x-toon-verify"],
+        Cookie: `toon_i=${session}`,
+        "x-toon-signature": signature,
+        "x-toon-verify": verify,
       },
       timeout: 30000,
     });
 
-    // Check if response is encrypted
-    const data = response.data as any;
-    if (data && typeof data === "object" && data.encrypted) {
+    // Check if response is encrypted (string instead of JSON)
+    const data = response.data;
+    if (typeof data === "string" && data.length > 0) {
       console.log(`[api] decrypting response from ${url}`);
 
-      // Decrypt using passphrase
-      const decryptResponse = await axios.post(
-        `${TOKEN_SERVER}/api/decrypt`,
-        {
-          encrypted: data.encrypted,
-          passphrase,
-        },
-        { timeout: 10000 },
-      );
-
-      return JSON.parse(decryptResponse.data.decrypted) as T;
+      try {
+        const decrypted = await decryptData(data);
+        return JSON.parse(decrypted) as T;
+      } catch (decryptError) {
+        console.log(`[api] response not encrypted, returning as-is`);
+        return data as T;
+      }
     }
 
     console.log(`[api] encryption successful, switching to encrypted mode`);
@@ -338,9 +328,10 @@ export function setEncryptionMode(enabled: boolean): void {
 }
 
 /**
- * Clear API cache
+ * Clear API cache and token cache
  */
 export function clearCache(): void {
   cache.clear();
-  console.log("[api] Cache cleared");
+  clearTokenCache();
+  console.log("[api] Cache and tokens cleared");
 }

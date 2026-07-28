@@ -1,5 +1,4 @@
 import { Elysia } from "elysia";
-import axios from "axios";
 import {
   fetchChapterDetails,
   fetchMangaById,
