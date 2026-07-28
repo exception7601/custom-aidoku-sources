@@ -1,64 +1,64 @@
 # Toons Proxy
 
-Proxy server para a API do ToonLivre com fallback automático de criptografia.
+Proxy server for ToonLivre API with automatic encryption fallback.
 
-## Instalação
+## Installation
 
 ```bash
 bun install
 ```
 
-## Uso
+## Usage
 
 ```bash
-# Desenvolvimento
+# Development
 bun run dev
 
-# Produção
+# Production
 PORT=4000 bun run src/index.ts
 
-# Testes
+# Tests
 bun test
 ```
 
 ## Endpoints
 
-### API Principal
-- `GET /health` - Status do servidor
-- `GET /api/releases?page=1&limit=48` - Lançamentos
-- `GET /api/search?q=termo&page=1` - Buscar mangás
-- `GET /api/manga/:id` - Detalhes do mangá
-- `GET /api/manga/:id/reader` - Lista de capítulos
-- `GET /api/manga/:id/chapters/:chapterId` - Páginas do capítulo
+### Main API
+- `GET /health` - Server status
+- `GET /api/releases?page=1&limit=48` - Latest releases
+- `GET /api/search?q=term&page=1` - Search manga
+- `GET /api/manga/:id` - Manga details
+- `GET /api/manga/:id/reader` - Chapter list
+- `GET /api/manga/:id/chapters/:chapterId` - Chapter pages
 
-### Controle
-- `GET /api/encryption/status` - Status da criptografia
-- `POST /api/encryption/toggle` - Ativar/desativar criptografia
-- `POST /api/cache/clear` - Limpar cache
-- `GET /api/logs` - Ver logs de acesso
-- `DELETE /api/logs` - Limpar logs
+### Control
+- `GET /api/encryption/status` - Encryption status
+- `POST /api/encryption/toggle` - Toggle encryption on/off
+- `POST /api/cache/clear` - Clear cache
+- `GET /api/logs` - View access logs
+- `DELETE /api/logs` - Clear logs
 
-## Estrutura
+## Structure
 
 ```
 toons-proxy/
 ├── src/
-│   ├── index.ts           # Servidor HTTP
-│   ├── toonlivre-api.ts   # Cliente API com fallback
-│   ├── logger.ts          # Sistema de logs
-│   ├── token-manager.ts   # Gerenciamento de tokens
-│   └── token-server.ts    # Cliente token-server
+│   ├── index.ts           # HTTP server
+│   ├── toonlivre-api.ts   # API client with fallback
+│   ├── logger.ts          # Logging system
+│   ├── token-manager.ts   # Token management
+│   └── token-server.ts    # Token-server client
 ├── tests/
-│   ├── api.test.ts        # Testes de tipos
-│   ├── live.test.ts       # Testes de integração
-│   └── fallback.test.ts   # Testes de fallback
-└── scripts/               # Scripts auxiliares
+│   ├── api.test.ts        # Type tests
+│   ├── live.test.ts       # Integration tests
+│   └── fallback.test.ts   # Fallback tests
+└── scripts/               # Helper scripts
 ```
 
-## Variáveis de Ambiente
+## Environment Variables
 
 ```bash
-PORT=4000                                    # Porta do servidor
+PORT=4000                                    # Server port
 TOKEN_SERVER_HOST=http://localhost:3001      # Token-server (fallback)
 ```
 
@@ -69,14 +69,14 @@ docker build -t toons-proxy .
 docker run -p 4000:4000 toons-proxy
 ```
 
-## Como Funciona
+## How It Works
 
-1. **Acesso direto** - Tenta sem criptografia (modo atual)
-2. **Detecção automática** - Se receber erro 401/403, ativa criptografia
-3. **Fallback** - Conecta no token-server e usa criptografia Rabbit
-4. **Verificação periódica** - Testa mudanças a cada 5 minutos
+1. **Direct access** - Tries without encryption (current mode)
+2. **Automatic detection** - If 401/403 error received, activates encryption
+3. **Fallback** - Connects to token-server and uses Rabbit encryption
+4. **Periodic verification** - Tests for changes every 5 minutes
 
-## Monitoramento
+## Monitoring
 
 ```bash
 # Status
@@ -85,10 +85,10 @@ curl http://localhost:4000/health | jq
 # Logs
 curl http://localhost:4000/api/logs?limit=50 | jq
 
-# Estatísticas
+# Statistics
 curl http://localhost:4000/api/logs/stats | jq
 ```
 
-## Versão
+## Version
 
 2.0.0
