@@ -1,30 +1,24 @@
 use aidoku::{
 	AidokuError, Result,
 	alloc::{String, Vec, format},
-	imports::net::Request,
+	imports::{net::Request, std::current_date},
 	prelude::*,
 };
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 
-// Load proxy host from res/proxy-server.json
-// Default production: https://toons.4nd.xyz/api
-// Tests always use: http://localhost:3000/api
+use crate::{ACCEPT_LANGUAGE, BASE_URL, percent_encode};
 
-fn get_proxy_base() -> String {
-	#[cfg(test)]
-	{
-		// Tests always use localhost on port 4000
-		String::from("http://localhost:4000/api")
-	}
+const API_BASE: &str = "https://toonlivre.net/api";
+const DIRECT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
 
-	#[cfg(not(test))]
-	{
-		// Production uses remote server from proxy-server.json
-		String::from("https://toons.4nd.xyz/api")
-	}
+#[derive(Debug, Clone)]
+struct AuthTokens {
+	signature: String,
+	session: String,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ApiPagination {
 	#[serde(rename = "currentPage")]
@@ -55,13 +49,13 @@ pub(crate) struct ApiMangaCard {
 	pub title: String,
 	#[serde(default, rename = "coverUrl")]
 	pub cover_url: Option<String>,
-	#[serde(default)]
+	#[serde(default, alias = "uploadSlug")]
 	pub slug: Option<String>,
 	#[serde(default, rename = "alternativeTitle")]
 	pub alternative_title: Option<String>,
-	#[serde(default)]
+	#[serde(default, rename = "recentChapters")]
 	pub recent_chapters: Vec<ApiChapter>,
-	#[serde(default)]
+	#[serde(default, rename = "registeredUsersOnly")]
 	pub registered_users_only: bool,
 }
 
@@ -91,9 +85,9 @@ pub(crate) struct ApiMangaById {
 	pub status: Option<String>,
 	#[serde(default, rename = "alternativeTitle")]
 	pub alternative_title: Option<String>,
-	#[serde(default)]
+	#[serde(default, rename = "recentChapters")]
 	pub recent_chapters: Vec<ApiChapter>,
-	#[serde(default)]
+	#[serde(default, rename = "registeredUsersOnly")]
 	pub registered_users_only: bool,
 }
 
@@ -120,7 +114,7 @@ pub(crate) struct ApiReaderManga {
 	pub alternative_title: Option<String>,
 	#[serde(default)]
 	pub chapters: Vec<ApiChapter>,
-	#[serde(default)]
+	#[serde(default, rename = "registeredUsersOnly")]
 	pub registered_users_only: bool,
 }
 
@@ -147,7 +141,7 @@ pub(crate) struct ApiMangaBySlug {
 	pub alternative_title: Option<String>,
 	#[serde(default)]
 	pub chapters: Vec<ApiChapter>,
-	#[serde(default)]
+	#[serde(default, rename = "registeredUsersOnly")]
 	pub registered_users_only: bool,
 }
 
@@ -167,99 +161,151 @@ pub(crate) struct ApiChapterDetails {
 	pub release_date: String,
 }
 
-pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
-	source_log!("[proxy] fetch_releases page={} limit={}", page, limit);
-	let proxy_base = get_proxy_base();
-	request_json(&format!(
-		"{}/releases?page={}&limit={}",
-		proxy_base, page, limit
-	))
+#[derive(Debug, Clone, Deserialize)]
+struct SeedResponse {
+	token: Option<String>,
 }
 
-pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiListResponse> {
-	source_log!(
-		"[proxy] search_mangas query={} page={} limit={}",
-		query,
-		page,
-		limit
-	);
-	let proxy_base = get_proxy_base();
-	request_json(&format!(
-		"{}/search?q={}&page={}&limit={}",
-		proxy_base, query, page, limit
-	))
+fn generate_session() -> String {
+	let now = current_date() as u64;
+	let mixed = now.rotate_left(13) ^ now.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+	format!("{:x}{:x}", now, mixed)
 }
 
-pub(crate) fn fetch_manga_by_id(id: &str) -> Result<ApiMangaById> {
-	source_log!("[proxy] fetch_manga_by_id id={}", id);
-	let proxy_base = get_proxy_base();
-	request_json(&format!("{}/manga/{}", proxy_base, id))
-}
-
-pub(crate) fn fetch_manga_reader(id: &str) -> Result<ApiReaderManga> {
-	source_log!("[proxy] fetch_manga_reader id={}", id);
-	let proxy_base = get_proxy_base();
-	request_json(&format!("{}/manga/{}/reader", proxy_base, id))
-}
-
-pub(crate) fn fetch_manga_by_slug(slug: &str) -> Result<ApiMangaBySlug> {
-	source_log!("[proxy] fetch_manga_by_slug slug={}", slug);
-	let proxy_base = get_proxy_base();
-	request_json(&format!(
-		"{}/manga-by-slug/{}",
-		proxy_base,
-		slug.trim_matches('/')
-	))
-}
-
-pub(crate) fn fetch_chapter(manga_id: &str, chapter_id: &str) -> Result<ApiChapterDetails> {
-	source_log!(
-		"[proxy] fetch_chapter manga_id={} chapter_id={}",
-		manga_id,
-		chapter_id
-	);
-	let proxy_base = get_proxy_base();
-	request_json(&format!(
-		"{}/manga/{}/chapters/{}",
-		proxy_base, manga_id, chapter_id
-	))
-}
-
-fn request_json<T>(url: &str) -> Result<T>
+fn parse_json<T>(url: &str, body: &str) -> Result<T>
 where
-	T: serde::de::DeserializeOwned,
+	T: DeserializeOwned,
 {
-	source_log!("[proxy] request_json url={}", url);
-	let response = Request::get(url)?
-		.header("accept", "application/json")
-		.send()
-		.map_err(|error| {
-			AidokuError::Message(format!(
-				"Proxy request failed.\nURL: {url}\nError: {error:?}"
-			))
-		})?;
+	serde_json::from_str(body).map_err(|error| {
+		AidokuError::Message(format!(
+			"Failed to parse JSON response.\nURL: {url}\nError: {error}"
+		))
+	})
+}
 
+fn response_error(url: &str, status: i32, body: &str) -> AidokuError {
+	let message = serde_json::from_str::<Value>(body)
+		.ok()
+		.and_then(|json| {
+			json.get("error")
+				.and_then(|value| value.as_str())
+				.map(String::from)
+		})
+		.unwrap_or_else(|| String::from(body.trim()));
+	AidokuError::Message(format!(
+		"Request failed.\nURL: {url}\nStatus: {status}\nError: {message}"
+	))
+}
+
+fn send_request(
+	url: &str,
+	referer: &str,
+	auth: Option<&AuthTokens>,
+) -> Result<aidoku::imports::net::Response> {
+	let mut request = Request::get(url)?
+		.header("Accept", "application/json, text/plain, */*")
+		.header("User-Agent", DIRECT_USER_AGENT)
+		.header("Accept-Language", ACCEPT_LANGUAGE)
+		.header("Referer", referer);
+
+	if let Some(auth) = auth {
+		request.set_header(String::from("Cookie"), format!("toon_v={}", auth.session));
+		request.set_header(String::from("x-toon-signature"), auth.signature.clone());
+	}
+
+	request.send().map_err(|error| {
+		AidokuError::Message(format!("Request failed.\nURL: {url}\nError: {error:?}"))
+	})
+}
+
+fn fetch_seed_jwt() -> Result<String> {
+	let url = format!("{API_BASE}/seed");
+	let response = send_request(&url, BASE_URL, None)?;
 	let status = response.status_code();
 	let body = response.get_string().map_err(|error| {
 		AidokuError::Message(format!(
-			"Failed to read proxy response body.\nURL: {url}\nStatus: {status}\nError: {error:?}"
+			"Failed to read seed response body.\nURL: {url}\nStatus: {status}\nError: {error:?}"
 		))
 	})?;
 
 	if !(200..300).contains(&status) {
-		bail!("Proxy request failed with status {}", status);
+		return Err(response_error(&url, status, &body));
 	}
 
-	let response_obj: serde_json::Value = serde_json::from_str(&body).map_err(|error| {
+	let response_data: SeedResponse = parse_json(&url, &body)?;
+	response_data.token.ok_or_else(|| {
+		AidokuError::Message(format!("Seed response missing token field.\nURL: {url}"))
+	})
+}
+
+fn get_auth_tokens() -> Result<AuthTokens> {
+	let session = generate_session();
+	let signature = fetch_seed_jwt()?;
+	Ok(AuthTokens { signature, session })
+}
+
+fn request_json_with_auth<T>(url: &str, referer: &str, auth: &AuthTokens) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	let response = send_request(url, referer, Some(auth))?;
+	let status = response.status_code();
+	let body = response.get_string().map_err(|error| {
 		AidokuError::Message(format!(
-			"Failed to parse proxy JSON response.\nURL: {url}\nError: {error}"
+			"Failed to read response body.\nURL: {url}\nStatus: {status}\nError: {error:?}"
 		))
 	})?;
 
-	let data = response_obj
-		.get("data")
-		.ok_or_else(|| AidokuError::Message(String::from("Proxy response missing data field")))?;
+	if !(200..300).contains(&status) {
+		return Err(response_error(url, status, &body));
+	}
 
-	serde_json::from_value(data.clone())
-		.map_err(|error| AidokuError::Message(format!("Failed to parse proxy data: {error}")))
+	parse_json(url, &body)
+}
+
+fn request_json<T>(url: &str, referer: &str) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	let auth = get_auth_tokens()?;
+	request_json_with_auth(url, referer, &auth)
+}
+
+pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {
+	let url = format!("{API_BASE}/mangas/releases?page={page}&limit={limit}");
+	source_log!("[toonlivre] fetch_releases page={} limit={}", page, limit);
+	request_json(&url, BASE_URL)
+}
+
+pub(crate) fn search_mangas(query: &str, page: i32, limit: i32) -> Result<ApiListResponse> {
+	let encoded = percent_encode(query.trim());
+	let url = format!(
+		"{API_BASE}/mangas/search?q={encoded}&page={page}&limit={limit}&sortBy=updated&sortOrder=desc"
+	);
+	source_log!(
+		"[toonlivre] search_mangas query={} page={} limit={}",
+		query,
+		page,
+		limit
+	);
+	request_json(&url, BASE_URL)
+}
+
+pub(crate) fn fetch_manga_by_id(id: &str) -> Result<ApiMangaById> {
+	let url = format!("{API_BASE}/mangas/{}", percent_encode(id));
+	source_log!("[toonlivre] fetch_manga_by_id id={}", id);
+	request_json(&url, BASE_URL)
+}
+
+pub(crate) fn fetch_manga_reader(id: &str) -> Result<ApiReaderManga> {
+	let url = format!("{API_BASE}/mangas/{}/reader", percent_encode(id));
+	source_log!("[toonlivre] fetch_manga_reader id={}", id);
+	request_json(&url, BASE_URL)
+}
+
+pub(crate) fn fetch_manga_by_slug(slug: &str) -> Result<ApiMangaBySlug> {
+	let encoded = percent_encode(slug.trim_matches('/'));
+	let url = format!("{API_BASE}/manga-by-slug/{encoded}");
+	source_log!("[toonlivre] fetch_manga_by_slug slug={}", slug);
+	request_json(&url, BASE_URL)
 }

@@ -4,17 +4,23 @@ use aidoku::{
 	Manga, MangaPageResult, MangaWithChapter, Page, PageContent, PageContext, Result, Source,
 	Viewer,
 	alloc::{String, Vec, vec},
-	imports::{net::Request, std::send_partial_result},
+	imports::{
+		js::WebView,
+		net::Request,
+		std::{send_partial_result, sleep},
+	},
 	prelude::*,
 };
 
+use serde::Deserialize;
+
 use crate::{
-	ACCEPT_LANGUAGE, ApiChapter, ApiListResponse, ApiMangaById, ApiMangaBySlug, ApiMangaCard,
-	ApiReaderManga, chapter_key_or_number, chapter_numbers_match, chapter_url_from_slug_and_number,
-	date_from_timestamp_millis, deep_link_result, fetch_chapter, fetch_manga_by_id,
-	fetch_manga_by_slug, fetch_manga_reader, fetch_releases, manga_slug_from_manga,
-	manga_status_from_text, manga_url_from_slug, normalize_chapter_number, parse_chapter_number,
-	slugify_title,
+	ACCEPT_LANGUAGE, ApiChapter, ApiChapterDetails, ApiListResponse, ApiMangaById, ApiMangaBySlug,
+	ApiMangaCard, ApiReaderManga, chapter_key_or_number, chapter_numbers_match,
+	chapter_url_from_slug_and_number, date_from_timestamp_millis, deep_link_result,
+	fetch_manga_by_id, fetch_manga_by_slug, fetch_manga_reader, fetch_releases,
+	manga_slug_from_manga, manga_status_from_text, manga_url_from_slug, normalize_chapter_number,
+	parse_chapter_number, slugify_title,
 };
 
 pub(crate) struct ToonLivre;
@@ -22,6 +28,13 @@ pub(crate) struct ToonLivre;
 const RELEASES_PAGE_SIZE: i32 = 48;
 const SEARCH_PAGE_SIZE: i32 = 24;
 const HOME_PAGE_SIZE: usize = 12;
+const WEBVIEW_CHAPTER_LOAD_ATTEMPTS: i32 = 10;
+const WEBVIEW_CHAPTER_LOAD_DELAY_SECONDS: i32 = 1;
+const WEBVIEW_USER_AGENT: &str = concat!(
+	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) ",
+	"AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 ",
+	"Mobile/15E148 Safari/604.1",
+);
 
 impl Source for ToonLivre {
 	fn new() -> Self {
@@ -142,9 +155,9 @@ impl Source for ToonLivre {
 			chapter_id,
 			chapter_url
 		);
-		let chapter_details = fetch_chapter(&manga_id, &chapter_id)?;
+		let chapter_details = fetch_chapter_via_webview(&chapter_url, &manga_id, &chapter_id)?;
 		source_log!(
-			"[toonlivre] get_page_list details id={} number={} timestamp={} pages={}",
+			"[toonlivre] get_page_list webview details id={} number={} timestamp={} pages={}",
 			chapter_details.id,
 			chapter_details.number,
 			chapter_details.timestamp,
@@ -499,4 +512,87 @@ fn resolve_chapter_identity(manga: &Manga, chapter: &Chapter) -> Result<(String,
 		.clone()
 		.unwrap_or_else(|| chapter_url_from_slug_and_number(&slug, &matched.number));
 	Ok((details.id, matched.id.clone(), chapter_url))
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WebViewChapterCache {
+	chapter: ApiChapterDetails,
+}
+
+pub(crate) fn webview_chapter_storage_key(manga_id: &str, chapter_id: &str) -> String {
+	format!("toonlivre_chapter_cache_v1:{manga_id}:{chapter_id}")
+}
+
+pub(crate) fn parse_webview_chapter_cache(
+	value: &str,
+	storage_key: &str,
+) -> Result<ApiChapterDetails> {
+	let cache: WebViewChapterCache = serde_json::from_str(value).map_err(|error| {
+		AidokuError::Message(format!(
+			"Failed to parse chapter cache from WebView.\nKey: {storage_key}\nError: {error}"
+		))
+	})?;
+
+	if cache.chapter.pages.is_empty() {
+		bail!("WebView chapter cache does not contain pages.\nKey: {storage_key}");
+	}
+
+	Ok(cache.chapter)
+}
+
+fn fetch_chapter_via_webview(
+	chapter_url: &str,
+	manga_id: &str,
+	chapter_id: &str,
+) -> Result<ApiChapterDetails> {
+	source_log!(
+		"[toonlivre] fetch_chapter_via_webview start url={} manga_id={} chapter_id={}",
+		chapter_url,
+		manga_id,
+		chapter_id
+	);
+
+	let request = Request::get(chapter_url)?
+		.header("User-Agent", WEBVIEW_USER_AGENT)
+		.header(
+			"Accept",
+			"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+		)
+		.header("Accept-Language", ACCEPT_LANGUAGE)
+		.header("Referer", crate::BASE_URL);
+
+	let webview = WebView::new();
+	webview.load_blocking(request).map_err(|error| {
+		AidokuError::Message(format!(
+			"WebView chapter load failed.\nURL: {chapter_url}\nError: {error:?}"
+		))
+	})?;
+
+	let storage_key = webview_chapter_storage_key(manga_id, chapter_id);
+	for attempt in 1..=WEBVIEW_CHAPTER_LOAD_ATTEMPTS {
+		let script = format!("sessionStorage.getItem({:?}) || \"\"", storage_key);
+		let raw = webview.eval(&script).map_err(|error| {
+			AidokuError::Message(format!(
+				"WebView chapter eval failed.\nURL: {chapter_url}\nKey: {storage_key}\nError: {error:?}"
+			))
+		})?;
+		let value = raw.trim();
+		if !value.is_empty() && value != "null" && value != "undefined" {
+			let chapter = parse_webview_chapter_cache(value, &storage_key)?;
+			source_log!(
+				"[toonlivre] webview chapter cache ready attempt={} key={} pages={}",
+				attempt,
+				storage_key,
+				chapter.pages.len()
+			);
+			return Ok(chapter);
+		}
+		if attempt < WEBVIEW_CHAPTER_LOAD_ATTEMPTS {
+			sleep(WEBVIEW_CHAPTER_LOAD_DELAY_SECONDS);
+		}
+	}
+
+	bail!(
+		"WebView chapter cache not populated. URL: {chapter_url} manga_id={manga_id} chapter_id={chapter_id}"
+	)
 }

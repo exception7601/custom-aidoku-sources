@@ -22,7 +22,7 @@ mod source;
 mod utils;
 
 pub(crate) use api::*;
-pub(crate) use source::ToonLivre;
+pub(crate) use source::{ToonLivre, parse_webview_chapter_cache, webview_chapter_storage_key};
 pub(crate) use utils::*;
 
 register_source!(ToonLivre, DeepLinkHandler, Home, ImageRequestProvider);
