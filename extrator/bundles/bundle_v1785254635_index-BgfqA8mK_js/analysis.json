@@ -1,0 +1,40 @@
+{
+  "request": {
+    "signatureRules": [],
+    "dataKeyHeader": "x-toon-datakey",
+    "signatureHeader": "x-toon-signature",
+    "signatureStrategy": {
+      "kind": "seed-jwt",
+      "metaName": "t-seed",
+      "endpointPath": "/api/seed",
+      "tokenField": "token"
+    }
+  },
+  "session": {
+    "cookieName": "toon_v",
+    "generator": {
+      "kind": "random-base36-concat",
+      "segments": [
+        {
+          "radix": 36,
+          "start": 2,
+          "end": 15
+        },
+        {
+          "radix": 36,
+          "start": 2,
+          "end": 15
+        }
+      ]
+    }
+  },
+  "decrypt": {
+    "algorithm": "cryptojs-rabbit",
+    "passphraseFunctionName": "String"
+  },
+  "snippets": {
+    "request": "",
+    "session": "t g=l?`${Pe}/chapter-token/${encodeURIComponent(i)}/${encodeURIComponent(l)}`:`${Pe}/chapter-token/${encodeURIComponent(i)}`,v=await Ip(),w=await fetch(g,{headers:{\"x-toon-signature\":v},credentials:\"include\"});if(!w.ok)return null;const m=await w.json();if(m&&m.token){const x=Date.now()+(m.expiresMs||3e5)-3e4;return Im.set(u,{token:m.token,expiresAt:x}),m.token}}catch(o){console.error(\"Falha ao obter token de rota do capítulo\",o)}return null},Cc=n=>{if(n&&!n.isTrusted||kc)return;kc=!0;let o=Uc(\"toon_v\");o||(o=Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15),document.cookie=`toon_v=${o}; path=/; max-age=31536000; SameSite=Lax`),Ec.forEach(i=>i()),Ec=[],typeof window<\"u\"&&[\"scroll\",\"mousemove\",\"touchstart\",\"click\",\"keydown\"].forEach(i=>window.removeEventListener(i,Cc))};typeof window<\"u\"&&([\"scroll\",\"mousemove\",\"touchstart\",\"click\",\"keydown\"].forEach(n=>window.addEventListener(n,Cc,{passive:!0})),setTimeout(Cc,3500));const dv=async()=>{if(!(kc||Uc(\"to",
+    "decrypt": ".toUpperCase(),B=new Headers(_.headers||{});B.append(\"x-toon-signature\",await Ip());const N=await uv(i);if(N&&B.append(\"x-toon-route-token\",N),y!==\"GET\"&&y!==\"HEAD\"&&y!==\"OPTIONS\"){const S=Mm();S&&B.set(\"x-csrf-token\",S)}return B},u=iv(i),f=!!o.__retried,g=!!(Mm()||typeof window<\"u\"&&window.localStorage?.getItem(\"toonlivre_user\")),v=async(_,y)=>{const B=await l(y);return fetch(_,{...y,headers:B,credentials:\"include\"})},w=n instanceof Request?n.clone():n;let m=await v(w,o);const x=m.headers.get(\"x-toon-datakey\");if(x&&m.ok)try{const y=await m.clone().json();if(y&&y[x]){const B=Gi.Rabbit.decrypt(y[x],String(cv())).toString(Gi.enc.Utf8),N=JSON.parse(B);m=new Response(JSON.stringify(N),{status:m.status,statusText:m.statusText,headers:m.headers})}}catch(_){console.error(\"Falha ao descriptografar pacote Rabbit\",_)}if(await Tm(m),m.status!==401||u||f||i.includes(\"/api/auth/me\")&&!g||!await lv())return m;const k={...o,__retried:!0},R=n instanceof Request?n.clone():n,C=await v(R,k);return await"
+  }
+}

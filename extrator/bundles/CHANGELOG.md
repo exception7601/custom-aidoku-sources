@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-28T16:03:55.000Z — `index-BgfqA8mK.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BgfqA8mK.js`
+- Saved folder: `bundle_v1785254635_index-BgfqA8mK_js`
+- SHA-256: `ce62ddee71f9965bb6352c98733dff1c3ee34d4f7cceaba12085d0c290c4244e`
+- Bytes: `580189`
+- Previous bundle: `bundle_v1785149324_index-C4vR5nOe_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-27T10:48:44.000Z — `index-C4vR5nOe.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-C4vR5nOe.js`
