@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getAuthTokens, decryptData, clearTokenCache } from "./crypto";
+import { clearTokenCache, decryptData, getAuthTokens } from "./crypto";
 
 const API_BASE = "https://toonlivre.net/api";
 
@@ -158,14 +158,16 @@ async function requestDirect<T>(url: string): Promise<T> {
     });
 
     // Check if response indicates encryption is needed
-    const responseData = response.data as any;
+    const responseData = response.data as Record<string, unknown>;
+    const errorMessage =
+      typeof responseData?.error === "string" ? responseData.error : "";
     const needsEncryption =
       response.status === 401 ||
       response.status === 403 ||
       (responseData?.error &&
-        (responseData.error.includes("token") ||
-          responseData.error.includes("signature") ||
-          responseData.error.includes("unauthorized")));
+        (errorMessage.includes("token") ||
+          errorMessage.includes("signature") ||
+          errorMessage.includes("unauthorized")));
 
     if (needsEncryption && !USE_ENCRYPTION) {
       console.log(
@@ -191,7 +193,10 @@ async function requestDirect<T>(url: string): Promise<T> {
   } catch (error) {
     // Check if we should try encryption fallback
     const now = Date.now();
-    if (!USE_ENCRYPTION && now - ENCRYPTION_LAST_CHECK > ENCRYPTION_CHECK_INTERVAL) {
+    if (
+      !USE_ENCRYPTION &&
+      now - ENCRYPTION_LAST_CHECK > ENCRYPTION_CHECK_INTERVAL
+    ) {
       console.log(
         `[api] Direct access error for ${url}, trying encryption fallback`,
       );
@@ -201,7 +206,7 @@ async function requestDirect<T>(url: string): Promise<T> {
         return await requestWithEncryption<T>(url);
       } catch (encryptionError) {
         console.error(
-          `[api] Encryption fallback also failed:`,
+          "[api] Encryption fallback also failed:",
           encryptionError,
         );
         throw error; // Throw original error
@@ -248,17 +253,17 @@ async function requestWithEncryption<T>(url: string): Promise<T> {
         const decrypted = await decryptData(data);
         return JSON.parse(decrypted) as T;
       } catch (decryptError) {
-        console.log(`[api] response not encrypted, returning as-is`);
+        console.log("[api] response not encrypted, returning as-is");
         return data as T;
       }
     }
 
-    console.log(`[api] encryption successful, switching to encrypted mode`);
+    console.log("[api] encryption successful, switching to encrypted mode");
     USE_ENCRYPTION = true;
 
     return response.data;
   } catch (error) {
-    console.error(`[api] encryption request failed:`, error);
+    console.error("[api] encryption request failed:", error);
     throw error;
   }
 }

@@ -1,15 +1,40 @@
 version: "3.8"
 
 services:
-  proxy:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+    volumes:
+      - ./wireguard:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - "4000:4000"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    networks:
+      - toons-network
+
+  toons-proxy:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "4000:4000"
+    container_name: toons-proxy
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=4000
     restart: unless-stopped
-    # Descomente a linha abaixo quando o serviço WireGuard estiver configurado
-    # network_mode: "service:wireguard"
+    network_mode: "service:wireguard"
+    depends_on:
+      - wireguard
+
+networks:
+  toons-network:
+    driver: bridge

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 
 describe("Toons Total Proxy - Encryption Fallback Tests", () => {
   const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:4001";
@@ -187,7 +187,7 @@ describe("Toons Total Proxy - Encryption Fallback Tests", () => {
       expect(data.success).toBe(false);
       expect(data.error).toBeDefined();
 
-      console.log(`[direct] Chapter not found handled correctly`);
+      console.log("[direct] Chapter not found handled correctly");
     });
   });
 
@@ -204,9 +204,7 @@ describe("Toons Total Proxy - Encryption Fallback Tests", () => {
       console.log(
         `\n[fallback] Final mode: ${statusData.data.mode} (enabled: ${statusData.data.enabled})`,
       );
-      console.log(
-        `[fallback] Last check: ${statusData.data.lastCheck}\n`,
-      );
+      console.log(`[fallback] Last check: ${statusData.data.lastCheck}\n`);
 
       expect(statusData.success).toBe(true);
       expect(statusData.data.mode).toBeDefined();

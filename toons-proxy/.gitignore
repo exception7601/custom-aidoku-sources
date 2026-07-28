@@ -1,0 +1,16 @@
+.gitignore
+node_modules/
+dist/
+.DS_Store
+*.log
+.env.local
+.env
+bun.lockb
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.turbo/
+coverage/
+wireguard/

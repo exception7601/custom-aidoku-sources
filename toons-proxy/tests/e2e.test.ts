@@ -20,7 +20,7 @@ describe("Toons Total Proxy - End-to-End Integration", () => {
     console.log(`✓ Found manga: ${manga.title} (${manga.id})`);
 
     // Step 2: Get manga details
-    console.log(`[2/4] Fetching manga details...`);
+    console.log("[2/4] Fetching manga details...");
     const mangaResponse = await fetch(`${BASE_URL}/api/manga/${manga.id}`);
     const mangaData = await mangaResponse.json();
 
@@ -30,9 +30,11 @@ describe("Toons Total Proxy - End-to-End Integration", () => {
 
     // Step 3: Get cover image through proxy
     if (manga.coverUrl) {
-      console.log(`[3/4] Proxying cover image...`);
+      console.log("[3/4] Proxying cover image...");
       const encodedUrl = encodeURIComponent(manga.coverUrl);
-      const imageResponse = await fetch(`${BASE_URL}/api/image?url=${encodedUrl}`);
+      const imageResponse = await fetch(
+        `${BASE_URL}/api/image?url=${encodedUrl}`,
+      );
 
       expect(imageResponse.status).toBe(200);
       expect(imageResponse.headers.get("content-type")).toMatch(/^image\//);
@@ -44,11 +46,11 @@ describe("Toons Total Proxy - End-to-End Integration", () => {
         `✓ Image proxied successfully: ${imageBuffer.byteLength} bytes, type: ${imageResponse.headers.get("content-type")}`,
       );
     } else {
-      console.log(`⚠ No cover URL available for this manga`);
+      console.log("⚠ No cover URL available for this manga");
     }
 
     // Step 4: Get reader data
-    console.log(`[4/4] Fetching reader data...`);
+    console.log("[4/4] Fetching reader data...");
     const readerResponse = await fetch(
       `${BASE_URL}/api/manga/${manga.id}/reader`,
     );
@@ -62,7 +64,7 @@ describe("Toons Total Proxy - End-to-End Integration", () => {
         `✓ Reader loaded with ${readerData.data.chapters.length} chapters`,
       );
     } else {
-      console.log(`⚠ No chapters available for this manga`);
+      console.log("⚠ No chapters available for this manga");
     }
 
     console.log("\n=== E2E Test Complete ===\n");
@@ -119,7 +121,7 @@ describe("Toons Total Proxy - End-to-End Integration", () => {
 
     // Data should be identical
     expect(JSON.stringify(data1.data)).toBe(JSON.stringify(data2.data));
-    console.log(`✓ Cache working: both requests returned identical data`);
+    console.log("✓ Cache working: both requests returned identical data");
 
     console.log("\n=== Cache Test Complete ===\n");
   });

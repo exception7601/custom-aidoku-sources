@@ -4,14 +4,14 @@ import CryptoJS from "crypto-js";
  * Simple cache with TTL
  */
 class SimpleCache {
-  private store: Map<string, { value: any; expires: number }> = new Map();
+  private store: Map<string, { value: unknown; expires: number }> = new Map();
 
-  set(key: string, value: any, ttlSeconds: number): void {
+  set(key: string, value: unknown, ttlSeconds: number): void {
     const expires = Date.now() + ttlSeconds * 1000;
     this.store.set(key, { value, expires });
   }
 
-  get(key: string): any | null {
+  get(key: string): unknown {
     const item = this.store.get(key);
     if (!item) return null;
 
@@ -47,7 +47,7 @@ function generateSession(): string {
 /**
  * Generate passphrase based on current UTC time
  * Replicates ToonLivre's passphrase generation logic
- * 
+ *
  * From bundle analysis:
  * - Uses Date.UTC(year, month, day, hour) as seed
  * - Applies MD5 hash
@@ -84,7 +84,7 @@ async function fetchSeedJWT(): Promise<string> {
     throw new Error(`Seed endpoint returned ${response.status}`);
   }
 
-  const data: any = await response.json();
+  const data = (await response.json()) as { token?: string };
   if (!data?.token) {
     throw new Error("Token not found in seed response");
   }
@@ -105,7 +105,12 @@ export async function getAuthTokens(): Promise<{
   const cacheKey = "current-tokens";
 
   // Check cache (25 second TTL)
-  const cached = tokenCache.get(cacheKey);
+  const cached = tokenCache.get(cacheKey) as {
+    signature: string;
+    verify: string;
+    passphrase: string;
+    session: string;
+  } | null;
   if (cached) {
     console.log("[crypto] Using cached tokens");
     return cached;

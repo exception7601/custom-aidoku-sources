@@ -39,7 +39,7 @@ describe("Toons Total Proxy - Live Integration Tests", () => {
       expect(data.id).toBeDefined();
       expect(data.title).toBeDefined();
       // Note: API may not return slug field
-      console.log(`[test] Manga data:`, JSON.stringify(data, null, 2));
+      console.log("[test] Manga data:", JSON.stringify(data, null, 2));
     });
 
     it("should fetch manga by id without token-server", async () => {
@@ -82,7 +82,7 @@ describe("Toons Total Proxy - Live Integration Tests", () => {
       if (reader.chapters.length > 0) {
         // Find a valid chapter (skip if first one is not available)
         let chapterData = null;
-        let attempts = 0;
+        const attempts = 0;
         const maxAttempts = Math.min(5, reader.chapters.length);
 
         for (let i = 0; i < maxAttempts; i++) {
@@ -97,7 +97,6 @@ describe("Toons Total Proxy - Live Integration Tests", () => {
             console.log(
               `[test] Chapter ${chapter.id} not available, trying next... (attempt ${i + 1}/${maxAttempts})`,
             );
-            continue;
           }
         }
 
@@ -106,20 +105,16 @@ describe("Toons Total Proxy - Live Integration Tests", () => {
           expect(chapterData.pages).toBeDefined();
           expect(Array.isArray(chapterData.pages)).toBe(true);
 
-          console.log(
-            `[test] Chapter has ${chapterData.pages.length} pages`,
-          );
+          console.log(`[test] Chapter has ${chapterData.pages.length} pages`);
           if (chapterData.pages.length > 0) {
-            console.log(
-              `[test] First page: ${chapterData.pages[0]}`,
-            );
+            console.log(`[test] First page: ${chapterData.pages[0]}`);
           }
         } else {
           console.log(
             `[test] No valid chapters found in first ${maxAttempts} attempts`,
           );
           console.log(
-            `[test] Note: Chapter endpoint may require encryption or have changed`,
+            "[test] Note: Chapter endpoint may require encryption or have changed",
           );
         }
       }

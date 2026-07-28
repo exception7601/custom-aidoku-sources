@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import CryptoJS from "crypto-js";
 
 describe("Crypto Logic - Manual Implementation", () => {
@@ -37,7 +37,7 @@ describe("Crypto Logic - Manual Implementation", () => {
 
     it("should change every hour", () => {
       const now = new Date();
-      
+
       const currentHour = Date.UTC(
         now.getUTCFullYear(),
         now.getUTCMonth(),
@@ -52,8 +52,12 @@ describe("Crypto Logic - Manual Implementation", () => {
         now.getUTCHours() + 1,
       );
 
-      const pass1 = CryptoJS.MD5(currentHour.toString()).toString().substring(0, 8);
-      const pass2 = CryptoJS.MD5(nextHour.toString()).toString().substring(0, 8);
+      const pass1 = CryptoJS.MD5(currentHour.toString())
+        .toString()
+        .substring(0, 8);
+      const pass2 = CryptoJS.MD5(nextHour.toString())
+        .toString()
+        .substring(0, 8);
 
       expect(pass1).not.toBe(pass2);
     });
@@ -64,7 +68,10 @@ describe("Crypto Logic - Manual Implementation", () => {
       const original = "Hello, World!";
       const passphrase = "testpass";
 
-      const encrypted = CryptoJS.Rabbit.encrypt(original, passphrase).toString();
+      const encrypted = CryptoJS.Rabbit.encrypt(
+        original,
+        passphrase,
+      ).toString();
       const decrypted = CryptoJS.Rabbit.decrypt(encrypted, passphrase).toString(
         CryptoJS.enc.Utf8,
       );
@@ -92,8 +99,14 @@ describe("Crypto Logic - Manual Implementation", () => {
       const original = "test message";
       const passphrase = "key";
 
-      const encrypted1 = CryptoJS.Rabbit.encrypt(original, passphrase).toString();
-      const encrypted2 = CryptoJS.Rabbit.encrypt(original, passphrase).toString();
+      const encrypted1 = CryptoJS.Rabbit.encrypt(
+        original,
+        passphrase,
+      ).toString();
+      const encrypted2 = CryptoJS.Rabbit.encrypt(
+        original,
+        passphrase,
+      ).toString();
 
       // Different ciphertext due to IV
       expect(encrypted1).not.toBe(encrypted2);
@@ -117,7 +130,10 @@ describe("Crypto Logic - Manual Implementation", () => {
       const correctPass = "correct";
       const wrongPass = "wrong";
 
-      const encrypted = CryptoJS.Rabbit.encrypt(original, correctPass).toString();
+      const encrypted = CryptoJS.Rabbit.encrypt(
+        original,
+        correctPass,
+      ).toString();
 
       expect(() => {
         const decrypted = CryptoJS.Rabbit.decrypt(
