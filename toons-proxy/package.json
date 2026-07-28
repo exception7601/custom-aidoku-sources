@@ -17,6 +17,7 @@
     "test:fallback": "bun test tests/fallback.test.ts",
     "test:e2e": "bun test tests/e2e.test.ts",
     "test:all": "bun test",
+    "knip": "knip",
     "docker:build": "docker build -t toons-proxy:latest .",
     "docker:run": "docker run -p 3000:3000 toons-proxy:latest",
     "docker:compose:up": "docker-compose up -d",
@@ -28,7 +29,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.8.3",
-    "typescript": "^5.5.4",
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "knip": "^6.29.0",
+    "typescript": "^5.5.4"
   }
 }

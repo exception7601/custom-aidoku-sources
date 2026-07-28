@@ -55,7 +55,7 @@ export interface ApiChapter {
   pageCount?: number;
 }
 
-export interface ApiMangaCard {
+interface ApiMangaCard {
   id: string;
   title: string;
   coverUrl?: string;
@@ -65,7 +65,7 @@ export interface ApiMangaCard {
   registered_users_only: boolean;
 }
 
-export interface ApiPagination {
+interface ApiPagination {
   currentPage: number;
   hasNextPage: boolean;
 }
