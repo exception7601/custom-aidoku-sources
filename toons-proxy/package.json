@@ -1,7 +1,7 @@
 {
-  "name": "toons-total-proxy",
+  "name": "toons-proxy",
   "version": "2.0.0",
-  "description": "Proxy server for Toons Total API with JSON endpoints and image proxy",
+  "description": "Proxy server for Toons API with JSON endpoints and image proxy",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -17,8 +17,8 @@
     "test:fallback": "bun test tests/fallback.test.ts",
     "test:e2e": "bun test tests/e2e.test.ts",
     "test:all": "bun test",
-    "docker:build": "docker build -t toons-total-proxy:latest .",
-    "docker:run": "docker run -p 3000:3000 toons-total-proxy:latest",
+    "docker:build": "docker build -t toons-proxy:latest .",
+    "docker:run": "docker run -p 3000:3000 toons-proxy:latest",
     "docker:compose:up": "docker-compose up -d",
     "docker:compose:down": "docker-compose down"
   },

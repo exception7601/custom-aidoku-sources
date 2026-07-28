@@ -43,8 +43,8 @@ fn get_proxy_base() -> String {
 Tests require the proxy server running on `http://localhost:4000`:
 
 ```bash
-# Start proxy server (in toons-total-proxy directory)
-cd ../../toons-total-proxy
+# Start proxy server (in toons-proxy directory)
+cd ../../toons-proxy
 PORT=4000 bun run dev
 
 # Run integration tests (in source directory)
@@ -119,7 +119,7 @@ impl ImageRequestProvider for ToonLivre {
 
 ## Proxy Server Features
 
-The proxy server (`toons-total-proxy`) provides:
+The proxy server (`toons-proxy`) provides:
 
 - ✅ Direct API access (no encryption)
 - ✅ Automatic encryption fallback (if ToonLivre brings it back)
@@ -127,7 +127,7 @@ The proxy server (`toons-total-proxy`) provides:
 - ✅ Smart caching (20s TTL)
 - ✅ Monitoring endpoints
 
-See `../../toons-total-proxy/README.md` for proxy documentation.
+See `../../toons-proxy/README.md` for proxy documentation.
 
 ## Migration Notes
 
@@ -211,5 +211,5 @@ cargo build --release --target wasm32-unknown-unknown
 ## Documentation
 
 - Main README: `../../README.md`
-- Proxy documentation: `../../toons-total-proxy/PROJETO-FINALIZADO.md`
-- Quick commands: `../../toons-total-proxy/COMANDOS-RAPIDOS.sh`
+- Proxy documentation: `../../toons-proxy/PROJETO-FINALIZADO.md`
+- Quick commands: `../../toons-proxy/COMANDOS-RAPIDOS.sh`

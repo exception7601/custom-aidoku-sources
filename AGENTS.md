@@ -9,7 +9,28 @@
 - `public/` is generated locally and published by CI to the `gh-pages` branch.
 - `public/index.json` and `public/index.min.json` are the list entrypoints.
 - `public/sources/` contains packaged `.aix` outputs.
-- `public/icons/` contains icon assets copied during list build.
+- `public/icons/` contains icon assets copied during build.
+- `docs/` contains project documentation.
+- `toons-proxy/` contains the proxy server.
+- `token-server/` contains the token server (deprecated, kept for fallback).
+- `extrator/` contains the bundle extractor.
+
+## Documentation Policy
+
+**Do not create new `.md` files in the root or in project subdirectories unless explicitly requested by the user.**
+
+Existing documentation:
+- `AGENTS.md` - Workflow and commands (this file)
+- `docs/extrator-bundles.md` - Bundle extraction strategy
+- `toons-proxy/README.md` - Proxy documentation
+- `token-server/README.md` - Token server documentation (if exists)
+- `extrator/docs/README.md` - Extractor documentation
+
+When documenting changes:
+1. Update existing documentation files
+2. Add inline code comments
+3. Update CHANGELOG files if they exist
+4. Do not create summary, analysis, or migration documents
 
 ## Creating a new source
 

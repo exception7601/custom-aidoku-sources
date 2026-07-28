@@ -1,5 +1,5 @@
 #!/bin/bash
-# Comandos Rápidos - Toons Total Proxy v2.0.0
+# Comandos Rápidos - Toons Proxy v2.0.0
 
 # ============================================
 # DESENVOLVIMENTO
@@ -91,7 +91,7 @@ curl -s "http://localhost:4001/api/manga/obra-dbbabf0f/chapters/cap-01" | jq
 # ============================================
 
 # Build
-docker build -t toons-total-proxy .
+docker build -t toons-proxy .
 
 # Run
 docker run -d \
@@ -99,7 +99,7 @@ docker run -d \
   -p 4000:4000 \
   -e PORT=4000 \
   -e TOKEN_SERVER_HOST=http://token-server:3001 \
-  toons-total-proxy
+  toons-proxy
 
 # Logs
 docker logs -f toons-proxy
