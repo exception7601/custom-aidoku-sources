@@ -19,7 +19,6 @@ pub(crate) const ACCEPT_LANGUAGE: &str = "pt-BR,pt;q=0.9";
 
 mod api;
 mod source;
-mod token_server;
 mod utils;
 
 pub(crate) use api::*;
