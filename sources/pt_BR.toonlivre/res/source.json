@@ -2,11 +2,12 @@
 	"info": {
 		"id": "pt-br.toonlivre",
 		"name": "toonlivre",
-		"version": 1785276052,
+		"version": 1785283825,
 		"url": "https://toonlivre.net",
 		"contentRating": 0,
 		"languages": [
 			"pt-br"
-		]
+		],
+		"minAppVersion": "0.8.4"
 	}
 }

@@ -2,7 +2,6 @@ use aidoku::{
 	AidokuError, Result,
 	alloc::{String, Vec, format},
 	imports::{net::Request, std::current_date},
-	prelude::*,
 };
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -19,6 +18,7 @@ struct AuthTokens {
 	session: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ApiPagination {
 	#[serde(rename = "currentPage")]
@@ -166,7 +166,7 @@ struct SeedResponse {
 	token: Option<String>,
 }
 
-fn generate_session() -> String {
+pub(crate) fn generate_session() -> String {
 	let now = current_date() as u64;
 	let mixed = now.rotate_left(13) ^ now.wrapping_mul(0x9E37_79B9_7F4A_7C15);
 	format!("{:x}{:x}", now, mixed)

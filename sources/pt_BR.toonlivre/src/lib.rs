@@ -5,7 +5,7 @@ use aidoku::{DeepLinkHandler, Home, ImageRequestProvider, Source, prelude::*};
 #[cfg(any(test, debug_assertions))]
 macro_rules! source_log {
 	($($arg:tt)*) => {
-		println!($($arg)*)
+		::aidoku::prelude::println!($($arg)*)
 	};
 }
 
@@ -22,6 +22,7 @@ mod source;
 mod utils;
 
 pub(crate) use api::*;
+#[allow(unused_imports)]
 pub(crate) use source::{ToonLivre, parse_webview_chapter_cache, webview_chapter_storage_key};
 pub(crate) use utils::*;
 

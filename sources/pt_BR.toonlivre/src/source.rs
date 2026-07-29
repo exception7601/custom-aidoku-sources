@@ -12,13 +12,18 @@ use aidoku::{
 	prelude::*,
 };
 
+#[cfg(not(test))]
+use aidoku::imports::js::WebViewUserScript;
+
+use core::cell::RefCell;
+
 use serde::Deserialize;
 
 use crate::{
 	ACCEPT_LANGUAGE, ApiChapter, ApiChapterDetails, ApiListResponse, ApiMangaById, ApiMangaBySlug,
 	ApiMangaCard, ApiReaderManga, chapter_key_or_number, chapter_numbers_match,
 	chapter_url_from_slug_and_number, date_from_timestamp_millis, deep_link_result,
-	fetch_manga_by_id, fetch_manga_by_slug, fetch_manga_reader, fetch_releases,
+	fetch_manga_by_id, fetch_manga_by_slug, fetch_manga_reader, fetch_releases, generate_session,
 	manga_slug_from_manga, manga_status_from_text, manga_url_from_slug, normalize_chapter_number,
 	parse_chapter_number, slugify_title,
 };
@@ -30,6 +35,7 @@ const SEARCH_PAGE_SIZE: i32 = 24;
 const HOME_PAGE_SIZE: usize = 12;
 const WEBVIEW_CHAPTER_LOAD_ATTEMPTS: i32 = 10;
 const WEBVIEW_CHAPTER_LOAD_DELAY_SECONDS: i32 = 1;
+#[allow(dead_code)]
 const WEBVIEW_USER_AGENT: &str = concat!(
 	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) ",
 	"AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 ",
@@ -519,8 +525,261 @@ struct WebViewChapterCache {
 	chapter: ApiChapterDetails,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+struct WebViewResourceSnapshot {
+	name: String,
+	#[serde(rename = "initiatorType")]
+	initiator_type: String,
+	#[serde(rename = "transferSize")]
+	transfer_size: u64,
+	#[serde(rename = "decodedBodySize")]
+	decoded_body_size: u64,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+struct WebViewDebugSnapshot {
+	href: String,
+	title: String,
+	#[serde(rename = "readyState")]
+	ready_state: String,
+	cookie: String,
+	#[serde(rename = "userAgent")]
+	user_agent: String,
+	language: String,
+	languages: Vec<String>,
+	platform: String,
+	#[serde(rename = "maxTouchPoints")]
+	max_touch_points: i32,
+	#[serde(rename = "referrer")]
+	referrer: String,
+	#[serde(rename = "visibilityState")]
+	visibility_state: String,
+	#[serde(rename = "innerWidth")]
+	inner_width: i32,
+	#[serde(rename = "innerHeight")]
+	inner_height: i32,
+	#[serde(rename = "scrollY")]
+	scroll_y: f64,
+	#[serde(rename = "scrollHeight")]
+	scroll_height: i32,
+	#[serde(rename = "sessionStorageKeys")]
+	session_storage_keys: Vec<String>,
+	#[serde(rename = "sessionStorageLength")]
+	session_storage_length: usize,
+	resources: Vec<WebViewResourceSnapshot>,
+	#[serde(rename = "bodyTextPreview")]
+	body_text_preview: String,
+	#[serde(rename = "bodyHtmlPreview")]
+	body_html_preview: String,
+}
+
+struct WebViewCookieCache(RefCell<Option<String>>);
+
+unsafe impl Sync for WebViewCookieCache {}
+
+static WEBVIEW_COOKIE_CACHE: WebViewCookieCache = WebViewCookieCache(RefCell::new(None));
+
 pub(crate) fn webview_chapter_storage_key(manga_id: &str, chapter_id: &str) -> String {
 	format!("toonlivre_chapter_cache_v1:{manga_id}:{chapter_id}")
+}
+
+#[allow(dead_code)]
+fn shorten_for_log(value: &str, max_chars: usize) -> String {
+	let mut output: String = value.chars().take(max_chars).collect();
+	if value.chars().nth(max_chars).is_some() {
+		output.push_str("...");
+	}
+	output
+}
+
+fn fetch_webview_debug_snapshot(webview: &WebView) -> Result<WebViewDebugSnapshot> {
+	let raw = webview.eval(
+		"JSON.stringify({href: location.href, title: document.title, readyState: document.readyState, cookie: document.cookie || '', userAgent: navigator.userAgent, language: navigator.language || '', languages: navigator.languages || [], platform: navigator.platform || '', maxTouchPoints: navigator.maxTouchPoints || 0, referrer: document.referrer || '', visibilityState: document.visibilityState, innerWidth: window.innerWidth, innerHeight: window.innerHeight, scrollY: window.scrollY, scrollHeight: document.documentElement.scrollHeight || document.body.scrollHeight || 0, sessionStorageKeys: Object.keys(sessionStorage), sessionStorageLength: sessionStorage.length, resources: performance.getEntriesByType('resource').slice(-20).map(resource => ({name: resource.name, initiatorType: resource.initiatorType, transferSize: resource.transferSize, decodedBodySize: resource.decodedBodySize})), bodyTextPreview: document.body ? document.body.innerText.replace(/\\s+/g, ' ').trim().slice(0, 500) : '', bodyHtmlPreview: document.body ? document.body.innerHTML.replace(/\\s+/g, ' ').trim().slice(0, 500) : ''})",
+	)?;
+	serde_json::from_str(&raw).map_err(|error| {
+		AidokuError::Message(format!("Failed to parse WebView snapshot.\nError: {error}"))
+	})
+}
+
+fn webview_cookie_cache() -> Option<String> {
+	WEBVIEW_COOKIE_CACHE.0.borrow().clone()
+}
+
+fn update_webview_cookie_cache(cookie_header: &str) {
+	let candidate = cookie_header.trim();
+	if candidate.is_empty() {
+		return;
+	}
+
+	let candidate_pairs = candidate
+		.split(';')
+		.filter(|part| !part.trim().is_empty())
+		.count();
+	let mut cache = WEBVIEW_COOKIE_CACHE.0.borrow_mut();
+	let should_update = match cache.as_ref() {
+		Some(existing) => {
+			let existing_pairs = existing
+				.split(';')
+				.filter(|part| !part.trim().is_empty())
+				.count();
+			candidate_pairs > existing_pairs
+				|| (candidate_pairs == existing_pairs && candidate.len() >= existing.len())
+		}
+		None => true,
+	};
+	if should_update {
+		*cache = Some(String::from(candidate));
+	}
+}
+
+fn build_webview_cookie_header() -> String {
+	if let Some(cookie) = webview_cookie_cache()
+		&& cookie.contains("toon_v=")
+	{
+		return cookie;
+	}
+
+	let session = generate_session();
+	match webview_cookie_cache() {
+		Some(cookie) if !cookie.trim().is_empty() => {
+			if cookie.contains("toon_v=") {
+				cookie
+			} else {
+				format!("{cookie}; toon_v={session}")
+			}
+		}
+		_ => format!("toon_v={session}"),
+	}
+}
+
+fn force_webview_visible_layout(webview: &WebView) -> Result<()> {
+	let _raw = webview.eval(
+		r#"(() => {
+			try {
+				const width = 1280;
+				const height = 1920;
+				const patch = (target, key, descriptor) => {
+					try {
+						Object.defineProperty(target, key, descriptor);
+						return true;
+					} catch (error) {
+						return false;
+					}
+				};
+				const patched = {
+					innerWidth: patch(window, 'innerWidth', { configurable: true, get: () => width }),
+					innerHeight: patch(window, 'innerHeight', { configurable: true, get: () => height }),
+					outerWidth: patch(window, 'outerWidth', { configurable: true, get: () => width }),
+					outerHeight: patch(window, 'outerHeight', { configurable: true, get: () => height }),
+					visibilityState: patch(document, 'visibilityState', { configurable: true, get: () => 'visible' }),
+					hidden: patch(document, 'hidden', { configurable: true, get: () => false }),
+					matchMedia: patch(window, 'matchMedia', {
+						configurable: true,
+						writable: true,
+						value: (query) => {
+							const minWidth = /min-width:\s*(\d+)px/.exec(query);
+							const maxWidth = /max-width:\s*(\d+)px/.exec(query);
+							const min = minWidth ? Number(minWidth[1]) : null;
+							const max = maxWidth ? Number(maxWidth[1]) : null;
+							const matches = (min === null || width >= min) && (max === null || width <= max);
+							return {
+								matches,
+								media: query,
+								onchange: null,
+								addListener() {},
+								removeListener() {},
+								addEventListener() {},
+								removeEventListener() {},
+								dispatchEvent() {
+									return false;
+								},
+							};
+						},
+					}),
+				};
+				document.dispatchEvent(new Event('visibilitychange'));
+				window.dispatchEvent(new Event('resize'));
+				window.dispatchEvent(new Event('focus'));
+				window.dispatchEvent(new Event('orientationchange'));
+				return JSON.stringify({
+					patched,
+					innerWidth: window.innerWidth,
+					innerHeight: window.innerHeight,
+					visibilityState: document.visibilityState,
+					hidden: document.hidden,
+					matchMedia: window.matchMedia('(max-width: 767px)').matches,
+				});
+			} catch (error) {
+				return JSON.stringify({ error: String(error) });
+			}
+		})()"#,
+	)?;
+	source_log!("[toonlivre] webview layout patch result={_raw}");
+	Ok(())
+}
+
+#[allow(dead_code)]
+fn format_webview_resources(snapshot: &WebViewDebugSnapshot) -> String {
+	if snapshot.resources.is_empty() {
+		return String::from("(none)");
+	}
+
+	snapshot
+		.resources
+		.iter()
+		.map(|resource| {
+			format!(
+				"{}:{}:t{}:d{}",
+				resource.initiator_type,
+				shorten_for_log(&resource.name, 120),
+				resource.transfer_size,
+				resource.decoded_body_size,
+			)
+		})
+		.collect::<Vec<_>>()
+		.join(" | ")
+}
+
+#[allow(dead_code)]
+fn log_webview_debug_snapshot(_label: &str, _snapshot: &WebViewDebugSnapshot) {
+	source_log!(
+		"[toonlivre] {} href={} title={} ready_state={} visibility_state={} size={}x{} scroll_y={} scroll_height={} cookie={} user_agent={} language={} languages={} platform={} max_touch_points={} referrer={} session_storage_keys={} session_storage_length={}",
+		_label,
+		_snapshot.href,
+		_snapshot.title,
+		_snapshot.ready_state,
+		_snapshot.visibility_state,
+		_snapshot.inner_width,
+		_snapshot.inner_height,
+		_snapshot.scroll_y,
+		_snapshot.scroll_height,
+		shorten_for_log(&_snapshot.cookie, 240),
+		shorten_for_log(&_snapshot.user_agent, 180),
+		shorten_for_log(&_snapshot.language, 40),
+		_snapshot.languages.join("|"),
+		shorten_for_log(&_snapshot.platform, 40),
+		_snapshot.max_touch_points,
+		shorten_for_log(&_snapshot.referrer, 80),
+		_snapshot.session_storage_keys.join("|"),
+		_snapshot.session_storage_length,
+	);
+	source_log!(
+		"[toonlivre] {} resources={}",
+		_label,
+		format_webview_resources(_snapshot)
+	);
+	source_log!(
+		"[toonlivre] {} body_text_preview={}",
+		_label,
+		shorten_for_log(&_snapshot.body_text_preview, 500),
+	);
+	source_log!(
+		"[toonlivre] {} body_html_preview={}",
+		_label,
+		shorten_for_log(&_snapshot.body_html_preview, 500),
+	);
 }
 
 pub(crate) fn parse_webview_chapter_cache(
@@ -552,21 +811,150 @@ fn fetch_chapter_via_webview(
 		chapter_id
 	);
 
+	let webview = WebView::new();
+
+	// Inject script at document start to force visibility and patch layout size
+	#[cfg(not(test))]
+	let script_source = String::from(
+		r#"(() => {
+			try {
+				const patch = (target, key, descriptor) => {
+					try {
+						Object.defineProperty(target, key, descriptor);
+					} catch (e) {}
+				};
+				patch(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+				patch(document, 'hidden', { configurable: true, get: () => false });
+				patch(window, 'innerWidth', { configurable: true, get: () => 1280 });
+				patch(window, 'innerHeight', { configurable: true, get: () => 1920 });
+				patch(window, 'outerWidth', { configurable: true, get: () => 1280 });
+				patch(window, 'outerHeight', { configurable: true, get: () => 1920 });
+				patch(navigator, 'language', { configurable: true, get: () => 'pt-BR' });
+				patch(navigator, 'languages', { configurable: true, get: () => ['pt-BR', 'pt'] });
+
+				// Override fetch to force Accept-Language header
+				const originalFetch = window.fetch;
+				window.fetch = async function(resource, init) {
+					init = init || {};
+					init.headers = init.headers || {};
+					if (init.headers instanceof Headers) {
+						init.headers.set('Accept-Language', 'pt-BR,pt;q=0.9');
+					} else if (Array.isArray(init.headers)) {
+						let found = false;
+						for (let i = 0; i < init.headers.length; i++) {
+							if (init.headers[i][0].toLowerCase() === 'accept-language') {
+								init.headers[i][1] = 'pt-BR,pt;q=0.9';
+								found = true;
+								break;
+							}
+						}
+						if (!found) {
+							init.headers.push(['Accept-Language', 'pt-BR,pt;q=0.9']);
+						}
+					} else {
+						init.headers['Accept-Language'] = 'pt-BR,pt;q=0.9';
+					}
+					return originalFetch.apply(this, arguments);
+				};
+
+				// Override XMLHttpRequest to force Accept-Language header
+				const originalOpen = XMLHttpRequest.prototype.open;
+				XMLHttpRequest.prototype.open = function(method, url) {
+					this._url = url;
+					return originalOpen.apply(this, arguments);
+				};
+				const originalSend = XMLHttpRequest.prototype.send;
+				XMLHttpRequest.prototype.send = function() {
+					try {
+						if (this._url && (this._url.startsWith('/') || this._url.includes('toonlivre.net'))) {
+							this.setRequestHeader('Accept-Language', 'pt-BR,pt;q=0.9');
+						}
+					} catch (e) {}
+					return originalSend.apply(this, arguments);
+				};
+
+				const triggerEvents = () => {
+					window.dispatchEvent(new Event('scroll'));
+					window.dispatchEvent(new MouseEvent('mousemove'));
+					window.dispatchEvent(new Event('focus'));
+				};
+				setTimeout(triggerEvents, 500);
+				setTimeout(triggerEvents, 1500);
+				setTimeout(triggerEvents, 3000);
+			} catch (e) {}
+		})()"#,
+	);
+
+	#[cfg(not(test))]
+	{
+		let user_script = WebViewUserScript {
+			source: script_source,
+			at_document_end: false,
+			for_main_frame_only: true,
+		};
+
+		if let Err(_error) = webview.add_user_script(user_script) {
+			source_log!(
+				"[toonlivre] Failed to add visibility patch user script: {:?}",
+				_error
+			);
+		}
+	}
+
+	let cookie_header = build_webview_cookie_header();
+	source_log!(
+		"[toonlivre] webview cookie header prepared size={} value={}",
+		cookie_header.len(),
+		shorten_for_log(&cookie_header, 240)
+	);
+
+	// 1. Load the homepage to acquire Cloudflare clearance and other initialization cookies
+	// only if we do not have cached cookies yet.
+	if webview_cookie_cache().is_none() {
+		let base_request = Request::get(crate::BASE_URL)?
+			.header(
+				"Accept",
+				"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+			)
+			.header("Accept-Language", ACCEPT_LANGUAGE)
+			.header("Cookie", cookie_header.as_str());
+
+		source_log!("[toonlivre] No cached cookies. Loading base URL to acquire cookies");
+		if let Err(_error) = webview.load_blocking(base_request) {
+			source_log!("[toonlivre] Base URL load failed: {:?}", _error);
+		}
+
+		// Trigger early scroll/mousemove on homepage to ensure cookies are created
+		let _ = webview.eval(
+			"window.dispatchEvent(new Event('scroll')); window.dispatchEvent(new MouseEvent('mousemove'));",
+		);
+		sleep(1);
+	} else {
+		source_log!("[toonlivre] Using cached cookies. Skipping base URL load");
+	}
+
+	// 2. Load the chapter URL
 	let request = Request::get(chapter_url)?
-		.header("User-Agent", WEBVIEW_USER_AGENT)
 		.header(
 			"Accept",
 			"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 		)
 		.header("Accept-Language", ACCEPT_LANGUAGE)
-		.header("Referer", crate::BASE_URL);
+		.header("Referer", crate::BASE_URL)
+		.header("Cookie", cookie_header.as_str());
 
-	let webview = WebView::new();
+	source_log!("[toonlivre] Loading chapter URL: {}", chapter_url);
 	webview.load_blocking(request).map_err(|error| {
 		AidokuError::Message(format!(
 			"WebView chapter load failed.\nURL: {chapter_url}\nError: {error:?}"
 		))
 	})?;
+
+	force_webview_visible_layout(&webview)?;
+	source_log!("[toonlivre] webview visibility/layout forced");
+	let snapshot = fetch_webview_debug_snapshot(&webview)?;
+	update_webview_cookie_cache(&snapshot.cookie);
+	log_webview_debug_snapshot("webview after load", &snapshot);
 
 	let storage_key = webview_chapter_storage_key(manga_id, chapter_id);
 	for attempt in 1..=WEBVIEW_CHAPTER_LOAD_ATTEMPTS {
@@ -587,6 +975,9 @@ fn fetch_chapter_via_webview(
 			);
 			return Ok(chapter);
 		}
+		let snapshot = fetch_webview_debug_snapshot(&webview)?;
+		update_webview_cookie_cache(&snapshot.cookie);
+		log_webview_debug_snapshot(&format!("webview wait attempt={attempt}"), &snapshot);
 		if attempt < WEBVIEW_CHAPTER_LOAD_ATTEMPTS {
 			sleep(WEBVIEW_CHAPTER_LOAD_DELAY_SECONDS);
 		}
