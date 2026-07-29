@@ -98,18 +98,16 @@ async function fetchSeedJWT(): Promise<string> {
  */
 export async function getAuthTokens(): Promise<{
   signature: string;
-  verify: string;
-  passphrase: string;
   session: string;
+  passphrase: string;
 }> {
   const cacheKey = "current-tokens";
 
   // Check cache (25 second TTL)
   const cached = tokenCache.get(cacheKey) as {
     signature: string;
-    verify: string;
-    passphrase: string;
     session: string;
+    passphrase: string;
   } | null;
   if (cached) {
     console.log("[crypto] Using cached tokens");
@@ -125,9 +123,8 @@ export async function getAuthTokens(): Promise<{
 
   const result = {
     signature, // JWT from /api/seed
-    verify: session, // Random session ID
+    session, // Random session ID (for toon_v cookie)
     passphrase, // UTC hour-based MD5 hash (first 8 chars)
-    session,
   };
 
   // Cache for 25 seconds

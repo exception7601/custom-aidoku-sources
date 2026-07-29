@@ -51,6 +51,7 @@ export interface ApiChapter {
   id: string;
   number: string;
   title?: string;
+  url?: string;
   releaseDate?: string;
   timestamp?: number;
   pageCount?: number;
@@ -127,7 +128,10 @@ function generateSession(): string {
  * Request with encryption fallback
  * Tries direct access first, falls back to token-server if it fails
  */
-async function requestDirect<T>(url: string): Promise<T> {
+async function requestDirect<T>(
+  url: string,
+  options?: { mangaId?: string; chapterId?: string },
+): Promise<T> {
   console.log(`[api] requesting ${url}`);
 
   // Check cache first
@@ -177,7 +181,7 @@ async function requestDirect<T>(url: string): Promise<T> {
       ENCRYPTION_LAST_CHECK = Date.now();
 
       // Retry with encryption
-      return requestWithEncryption<T>(url);
+      return requestWithEncryption<T>(url, options);
     }
 
     if (response.status >= 400) {
@@ -221,49 +225,106 @@ async function requestDirect<T>(url: string): Promise<T> {
 /**
  * Request with encryption (using built-in crypto with bundle execution)
  */
-async function requestWithEncryption<T>(url: string): Promise<T> {
-  console.log(`[api] using encryption for ${url}`);
-
+/**
+ * Fetch chapter-specific route token
+ */
+async function fetchChapterToken(
+  mangaId: string,
+  chapterId: string,
+  chapterUrl?: string,
+): Promise<string | null> {
   try {
-    // Get authentication tokens and passphrase from bundle execution
-    const { signature, verify, session } = await getAuthTokens();
+    const { signature } = await getAuthTokens();
+    const tokenTarget = chapterUrl || chapterId;
+    const url = `https://toonlivre.net/api/chapter-token/${encodeURIComponent(mangaId)}/${encodeURIComponent(tokenTarget)}`;
 
-    // Make request with encryption headers
+    console.log(`[api] fetching chapter token for ${mangaId}/${tokenTarget}`);
+
     const response = await axios.get(url, {
       headers: {
-        Accept: "application/json, text/plain, */*",
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9",
-        Referer: "https://toonlivre.net/",
-        Origin: "https://toonlivre.net",
-        Cookie: `toon_i=${session}`,
         "x-toon-signature": signature,
-        "x-toon-verify": verify,
+        Accept: "application/json",
+        "Accept-Language": "pt-BR,pt;q=0.9",
+        Referer: chapterUrl || "https://toonlivre.net/",
       },
       timeout: 30000,
     });
 
-    // Check if response is encrypted (string instead of JSON)
-    const data = response.data;
-    if (typeof data === "string" && data.length > 0) {
-      console.log(`[api] decrypting response from ${url}`);
+    if (response.data?.token) {
+      console.log("[api] chapter token obtained");
+      return response.data.token;
+    }
 
-      try {
-        const decrypted = await decryptData(data);
-        return JSON.parse(decrypted) as T;
-      } catch (decryptError) {
-        console.log("[api] response not encrypted, returning as-is");
-        return data as T;
+    return null;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[api] failed to fetch chapter token: ${errorMsg}`);
+    return null;
+  }
+}
+
+async function requestWithEncryption<T>(
+  url: string,
+  options?: { mangaId?: string; chapterId?: string; chapterUrl?: string },
+): Promise<T> {
+  console.log(`[api] using encryption for ${url}`);
+
+  try {
+    // Get authentication tokens and passphrase
+    const { signature, session } = await getAuthTokens();
+
+    const headers: Record<string, string> = {
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "pt-BR,pt;q=0.9",
+      Referer: "https://toonlivre.net/",
+      Cookie: `toon_v=${session}`,
+      "x-toon-signature": signature,
+    };
+
+    // For chapter endpoints, add route token
+    if (options?.mangaId && options?.chapterId) {
+      const routeToken = await fetchChapterToken(
+        options.mangaId,
+        options.chapterId,
+        options.chapterUrl,
+      );
+      if (routeToken) {
+        headers["x-toon-route-token"] = routeToken;
       }
     }
 
-    console.log("[api] encryption successful, switching to encrypted mode");
+    // Make request with encryption headers
+    const response = await axios.get(url, {
+      headers,
+      timeout: 30000,
+    });
+
+    // Check if response has encrypted data via x-toon-datakey header
+    const dataKey = response.headers["x-toon-datakey"];
+    if (dataKey && response.data && response.data[dataKey]) {
+      console.log(`[api] decrypting response with datakey: ${dataKey}`);
+
+      try {
+        const encryptedData = response.data[dataKey];
+        const decrypted = await decryptData(encryptedData);
+        const parsed = JSON.parse(decrypted);
+        console.log("[api] decryption successful, switching to encrypted mode");
+        USE_ENCRYPTION = true;
+        return parsed as T;
+      } catch (decryptError) {
+        console.error("[api] decryption failed:", decryptError);
+        throw decryptError;
+      }
+    }
+
+    // No encryption, return as-is
+    console.log("[api] response not encrypted, switching to encrypted mode");
     USE_ENCRYPTION = true;
 
     return response.data;
   } catch (error) {
-    console.error("[api] encryption request failed:", error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[api] encryption request failed: ${errorMsg}`);
     throw error;
   }
 }
@@ -305,9 +366,10 @@ export async function fetchMangaBySlug(slug: string): Promise<ApiMangaById> {
 export async function fetchChapterDetails(
   mangaId: string,
   chapterId: string,
+  chapterUrl?: string,
 ): Promise<ApiChapterDetails> {
   const url = `${API_BASE}/mangas/${mangaId}/chapters/${chapterId}`;
-  return requestDirect<ApiChapterDetails>(url);
+  return requestDirect<ApiChapterDetails>(url, { mangaId, chapterId, chapterUrl });
 }
 
 /**

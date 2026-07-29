@@ -39,7 +39,7 @@ describe("Toons Total Proxy - Live Integration Tests", () => {
       expect(data.id).toBeDefined();
       expect(data.title).toBeDefined();
       // Note: API may not return slug field
-      console.log("[test] Manga data:", JSON.stringify(data, null, 2));
+      // console.log("[test] Manga data:", JSON.stringify(data, null, 2));
     });
 
     it("should fetch manga by id without token-server", async () => {
@@ -76,46 +76,29 @@ describe("Toons Total Proxy - Live Integration Tests", () => {
   describe("Chapter Details API", () => {
     it("should fetch chapter details without token-server", async () => {
       // Get manga first
-      const manga = await fetchMangaBySlug("contos-de-demonios-e-deuses");
+      const manga = await fetchMangaBySlug("obra-2f24ed3d");
       const reader = await fetchMangaReader(manga.id);
 
       if (reader.chapters.length > 0) {
-        // Find a valid chapter (skip if first one is not available)
-        let chapterData = null;
-        const attempts = 0;
-        const maxAttempts = Math.min(5, reader.chapters.length);
+        const chapter = reader.chapters.find(
+          (item) => item.id === "cap-9da2ca9c-01",
+        );
 
-        for (let i = 0; i < maxAttempts; i++) {
-          const chapter = reader.chapters[i];
-          try {
-            chapterData = await fetchChapterDetails(manga.id, chapter.id);
-            console.log(
-              `[test] Chapter ${chapter.id} found on attempt ${i + 1}`,
-            );
-            break;
-          } catch (error) {
-            console.log(
-              `[test] Chapter ${chapter.id} not available, trying next... (attempt ${i + 1}/${maxAttempts})`,
-            );
-          }
-        }
+        expect(chapter).toBeDefined();
 
-        if (chapterData) {
-          expect(chapterData).toBeDefined();
-          expect(chapterData.pages).toBeDefined();
-          expect(Array.isArray(chapterData.pages)).toBe(true);
+        const chapterData = await fetchChapterDetails(
+          manga.id,
+          "cap-9da2ca9c-01",
+          chapter?.url,
+        );
 
-          console.log(`[test] Chapter has ${chapterData.pages.length} pages`);
-          if (chapterData.pages.length > 0) {
-            console.log(`[test] First page: ${chapterData.pages[0]}`);
-          }
-        } else {
-          console.log(
-            `[test] No valid chapters found in first ${maxAttempts} attempts`,
-          );
-          console.log(
-            "[test] Note: Chapter endpoint may require encryption or have changed",
-          );
+        expect(chapterData).toBeDefined();
+        expect(chapterData.pages).toBeDefined();
+        expect(Array.isArray(chapterData.pages)).toBe(true);
+
+        console.log(`[test] Chapter has ${chapterData.pages.length} pages`);
+        if (chapterData.pages.length > 0) {
+          console.log(`[test] First page: ${chapterData.pages[0]}`);
         }
       }
     });
