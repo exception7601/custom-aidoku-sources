@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-29T08:33:03.000Z — `index-BKue0dfj.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BKue0dfj.js`
+- Saved folder: `bundle_v1785313983_index-BKue0dfj_js`
+- SHA-256: `c6fa441f4f079dad0e6f5cf3b636ea2576529cb1a7bbcd3c58320bc006de8adf`
+- Bytes: `505259`
+- Previous bundle: `bundle_v1785304094_index-B1HYS0Ob_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-29T05:48:14.000Z — `index-B1HYS0Ob.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-B1HYS0Ob.js`
