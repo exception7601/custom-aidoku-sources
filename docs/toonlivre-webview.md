@@ -18,7 +18,7 @@ Once the page loads and hydrates, we query `sessionStorage` via JavaScript evalu
 
 Several browser-level and security checks on `toonlivre.net` prevent a default background `WebView` from executing successfully:
 
-### 1. Viewport Visibilty and Layout Constraints
+### 1. Viewport Visibility and Layout Constraints
 Background WebViews on iOS (WKWebView) load with a visibility state of `"hidden"` and dimensions of `0x0`.
 ToonLivre's React application suspends rendering or fails hydration under these conditions.
 
@@ -31,15 +31,7 @@ This script patches:
 - `window.innerWidth` and `window.innerHeight` to `1280x1920`
 - `window.outerWidth` and `window.outerHeight` to `1280x1920`
 
-### 2. Trusted Events Protection
-ToonLivre implements a protection script that ignores programmatic window events.
-It checks the `isTrusted` property on events, which is `false` for events dispatched via `window.dispatchEvent`.
-
-**Solution**:
-We redefine `Event.prototype.isTrusted` inside the user script to always return `true`.
-This allows simulated `scroll`, `mousemove`, and `focus` events to be recognized as user actions, immediately triggering hydration and API fetch calls.
-
-### 3. Session and Cookie Requirements
+### 2. Session and Cookie Requirements
 ToonLivre requires a session cookie (`toon_v`) on the initial document request.
 If the cookie is absent, Next.js server-side rendering renders a "Manga not found" error page instead of the chapter reader.
 
@@ -47,7 +39,7 @@ If the cookie is absent, Next.js server-side rendering renders a "Manga not foun
 We pass the manual `Cookie` header containing a generated session ID on all WebView requests.
 Subsequent chapter requests skip the homepage load and navigate directly using the cached session cookie.
 
-### 4. Language Routing Obstacles
+### 3. Language Routing Obstacles
 If the device locale is set to a non-Portuguese language, the WebView makes subresource API requests containing the system's preferred language.
 This leads to localized routing errors or failures on the server.
 
@@ -56,15 +48,24 @@ We monkey-patch `window.fetch` and `XMLHttpRequest.prototype.send` in our inject
 
 ---
 
-## Direct API Decryption (Proxy Implementation)
+## Performance Optimizations
 
-For API requests outside of the WebView (such as manga list updates), the `toons-proxy` server handles encryption/decryption natively.
+To reduce WebView loading latency and provide a fast reading experience, two critical optimizations are applied:
 
-The proxy executes the following sequence:
+### 1. Skipping Homepage Pre-load
+Normally, a background WebView needs to load the website homepage to acquire Cloudflare clearance and generate session cookies.
+This introduces a significant overhead (1.5 to 2.5 seconds) on every chapter request.
 
-- Generates an hourly passphrase based on the MD5 hash of the current UTC timestamp:
-  - `UTC = Date.UTC(year, month, day, hour)`
-  - `Passphrase = MD5(UTC).substring(0, 8)`
-- Fetches the dynamic route token by querying the `/api/chapter-token` endpoint with signature headers.
-- Makes the request to the encrypted chapter endpoint `/api/mangas/{mangaId}/chapters/{chapterId}` passing the route token.
-- Decrypts the response natively using standard `CryptoJS.Rabbit.decrypt` with the hourly passphrase.
+**Solution**:
+We inspect if the session cookie (`toon_v`) is already cached.
+If cached cookies are present, we bypass loading `https://toonlivre.net/` and navigate the WebView directly to the target chapter URL.
+
+### 2. Spoofing Trusted Events
+ToonLivre's activation script ignores automated page events to block scrapers, checking `n.isTrusted` before running page hydration.
+Without real user interactions, page hydration is deferred until a `3500ms` fallback timeout expires.
+
+**Solution**:
+We override `Event.prototype.isTrusted` to return `true` at document start:
+`Object.defineProperty(Event.prototype, 'isTrusted', { configurable: true, get: () => true })`
+
+When we dispatch simulated `scroll` and `mousemove` events, the script validates them as trusted user actions and triggers the chapter API fetch immediately, saving up to 3.5 seconds.
