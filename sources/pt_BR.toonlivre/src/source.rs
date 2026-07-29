@@ -831,6 +831,7 @@ fn fetch_chapter_via_webview(
 				patch(window, 'outerHeight', { configurable: true, get: () => 1920 });
 				patch(navigator, 'language', { configurable: true, get: () => 'pt-BR' });
 				patch(navigator, 'languages', { configurable: true, get: () => ['pt-BR', 'pt'] });
+				patch(Event.prototype, 'isTrusted', { configurable: true, get: () => true });
 
 				// Override fetch to force Accept-Language header
 				const originalFetch = window.fetch;
