@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "pt-br.nexustoons",
+		"name": "nexustoons",
+		"version": 1785372059,
+		"url": "https://nexustoons.com/",
+		"contentRating": 0,
+		"languages": [
+			"pt-br"
+		],
+		"minAppVersion": "0.8.4"
+	}
+}
