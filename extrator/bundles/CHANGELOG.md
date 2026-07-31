@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-07-31T17:47:25.000Z — `index-BkDtEKQg.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BkDtEKQg.js`
+- Saved folder: `bundle_v1785520045_index-BkDtEKQg_js`
+- SHA-256: `ec3f6bccf9f152be525c6100cb3243503a0ee90e29e3e91b3dfb5e1eae071df1`
+- Bytes: `498662`
+- Previous bundle: `bundle_v1785490825_index-DA9otyRY_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-07-31T09:40:25.000Z — `index-DA9otyRY.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DA9otyRY.js`
