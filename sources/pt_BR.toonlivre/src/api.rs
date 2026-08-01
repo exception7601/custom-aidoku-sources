@@ -244,11 +244,11 @@ fn get_auth_tokens() -> Result<AuthTokens> {
 	Ok(AuthTokens { signature, session })
 }
 
-fn request_json_with_auth<T>(url: &str, referer: &str, auth: &AuthTokens) -> Result<T>
+fn request_json_inner<T>(url: &str, referer: &str, auth: Option<&AuthTokens>) -> Result<T>
 where
 	T: DeserializeOwned,
 {
-	let response = send_request(url, referer, Some(auth))?;
+	let response = send_request(url, referer, auth)?;
 	let status = response.status_code();
 	let body = response.get_string().map_err(|error| {
 		AidokuError::Message(format!(
@@ -263,12 +263,39 @@ where
 	parse_json(url, &body)
 }
 
+fn request_json_with_auth<T>(url: &str, referer: &str, auth: &AuthTokens) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	request_json_inner(url, referer, Some(auth))
+}
+
 fn request_json<T>(url: &str, referer: &str) -> Result<T>
 where
 	T: DeserializeOwned,
 {
-	let auth = get_auth_tokens()?;
-	request_json_with_auth(url, referer, &auth)
+	match request_json_inner(url, referer, None) {
+		Ok(response) => Ok(response),
+		Err(public_error) => {
+			source_log!(
+				"[toonlivre] public request failed url={} error={:?}; trying seed auth fallback",
+				url,
+				public_error
+			);
+			let auth = match get_auth_tokens() {
+				Ok(auth) => auth,
+				Err(seed_error) => {
+					source_log!(
+						"[toonlivre] seed auth unavailable url={} error={:?}",
+						url,
+						seed_error
+					);
+					return Err(public_error);
+				}
+			};
+			request_json_with_auth(url, referer, &auth)
+		}
+	}
 }
 
 pub(crate) fn fetch_releases(page: i32, limit: i32) -> Result<ApiListResponse> {

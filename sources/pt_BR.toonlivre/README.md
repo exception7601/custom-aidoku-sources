@@ -9,9 +9,8 @@ It does not use the local proxy server anymore.
 
 The direct flow is:
 
-- Fetch `/api/seed` for the short-lived signature.
-- Generate the `toon_v` cookie locally.
-- Call list and manga endpoints with `User-Agent`, `Accept-Language`, `Referer`, and `x-toon-signature`.
+- Call list and manga endpoints without `seed` when the public API is available.
+- Fall back to `/api/seed` plus `toon_v` and `x-toon-signature` if a metadata endpoint returns an error.
 - Load chapter pages in a background `WebView`.
 - Read the decrypted chapter cache from `sessionStorage`.
 
@@ -50,4 +49,5 @@ The source sets a `Referer` header for chapter images so the CDN accepts the req
 ## Troubleshooting
 
 If live tests fail, check that `toonlivre.net` is reachable from your machine.
+A `404` on `/api/seed` is expected while the public metadata endpoints remain available.
 If chapter loading fails, inspect the WebView cache key and the page request headers.
