@@ -1,0 +1,13 @@
+{
+  "name": "toonlivre-playwright-smoke",
+  "private": true,
+  "scripts": {
+    "playwright:install": "playwright install chromium webkit",
+    "test:playwright": "playwright test",
+    "test:playwright:chromium": "playwright test --project=chromium",
+    "test:playwright:webkit": "playwright test --project=webkit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
