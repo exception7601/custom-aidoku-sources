@@ -1,0 +1,201 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+const SOURCE_ROOT = path.resolve(__dirname, "..");
+const INSTRUMENTATION_PATH = path.join(
+  SOURCE_ROOT,
+  "src",
+  "webview",
+  "instrumentation.js"
+);
+const INSTRUMENTATION_SOURCE = fs.readFileSync(INSTRUMENTATION_PATH, "utf8");
+
+const WEBVIEW_USER_AGENT =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) " +
+  "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+
+const BLOCKED_RESOURCE_TYPES = new Set([
+  "image",
+  "media",
+  "font",
+  "stylesheet",
+  "texttrack",
+]);
+
+const BLOCKED_URL_SNIPPETS = [
+  "googletagmanager.com",
+  "google-analytics.com",
+  "doubleclick.net",
+  "connect.facebook.net",
+  "clarity.ms",
+  "hotjar.com",
+];
+
+const DEFAULT_SCENARIO = {
+  baseUrl: "https://toonlivre.net/",
+  chapterUrl:
+    process.env.TOONLIVRE_CHAPTER_URL ||
+    "https://toonlivre.net/fumando-nos-fundos-do-supermercado-com-voce/01",
+  mangaId: process.env.TOONLIVRE_MANGA_ID || "obra-d398da67",
+  chapterId: process.env.TOONLIVRE_CHAPTER_ID || "cap-d0b0082c-01",
+  chapterNumber: process.env.TOONLIVRE_CHAPTER_NUMBER || "01",
+  toonVCookie: process.env.TOONLIVRE_TOON_V || "",
+  blockNonEssentialResources: true,
+};
+
+function buildChapterStorageKey(mangaId, chapterId) {
+  return `toonlivre_chapter_cache_v1:${mangaId}:${chapterId}`;
+}
+
+function createScenario(overrides = {}) {
+  const merged = { ...DEFAULT_SCENARIO, ...overrides };
+  return {
+    ...merged,
+    bootConfig: {
+      width: 390,
+      height: 844,
+      dpr: 3,
+      userAgent: WEBVIEW_USER_AGENT,
+      platform: "iPhone",
+      vendor: "Apple Computer, Inc.",
+      maxTouchPoints: 5,
+      languageHeader: "pt-BR,pt;q=0.9",
+      toonVCookie: merged.toonVCookie,
+      chapterCacheGlobalKey: "__toonlivreAidokuChapterCache",
+      chapterStorageKey: buildChapterStorageKey(merged.mangaId, merged.chapterId),
+      targetMangaId: merged.mangaId,
+      targetChapterId: merged.chapterId,
+      targetChapterNumber: merged.chapterNumber,
+      debug: true,
+    },
+  };
+}
+
+function shouldAbortRequest(request, scenario) {
+  if (!scenario.blockNonEssentialResources) {
+    return false;
+  }
+
+  const resourceType = request.resourceType();
+  if (BLOCKED_RESOURCE_TYPES.has(resourceType)) {
+    return true;
+  }
+
+  const url = request.url();
+  return BLOCKED_URL_SNIPPETS.some((snippet) => url.includes(snippet));
+}
+
+async function installResourceBlocking(context, scenario) {
+  if (!scenario.blockNonEssentialResources) {
+    return;
+  }
+
+  await context.route("**/*", async (route) => {
+    if (shouldAbortRequest(route.request(), scenario)) {
+      await route.abort();
+      return;
+    }
+
+    await route.continue();
+  });
+}
+
+async function createInstrumentedContext(browser, overrides = {}) {
+  const scenario = createScenario(overrides);
+  const context = await browser.newContext({
+    userAgent: scenario.bootConfig.userAgent,
+    locale: "pt-BR",
+    viewport: {
+      width: scenario.bootConfig.width,
+      height: scenario.bootConfig.height,
+    },
+    deviceScaleFactor: scenario.bootConfig.dpr,
+    isMobile: true,
+    hasTouch: true,
+    extraHTTPHeaders: {
+      "Accept-Language": scenario.bootConfig.languageHeader,
+    },
+  });
+
+  await installResourceBlocking(context, scenario);
+
+  await context.addInitScript({ path: INSTRUMENTATION_PATH });
+  await context.addInitScript(
+    ({ bootConfig }) => {
+      if (typeof globalThis.__toonlivreAidokuBoot === "function") {
+        globalThis.__toonlivreAidokuBoot(bootConfig);
+      }
+    },
+    { bootConfig: scenario.bootConfig }
+  );
+
+  return { context, scenario };
+}
+
+async function openChapter(page, scenario, options = {}) {
+  const { loadBasePage = true } = options;
+
+  if (loadBasePage) {
+    await page.goto(scenario.baseUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1_000);
+  }
+
+  await page.goto(scenario.chapterUrl, {
+    waitUntil: "domcontentloaded",
+    referer: scenario.baseUrl,
+  });
+}
+
+async function waitForChapterCache(page) {
+  await page.waitForFunction(() => {
+    const storageKey = globalThis.__toonlivreAidokuConfig?.chapterStorageKey;
+    const raw =
+      globalThis.__toonlivreAidokuTestAPI?.readChapterCache?.() ||
+      globalThis.__toonlivreAidokuChapterCache ||
+      (storageKey ? sessionStorage.getItem(storageKey) : "") ||
+      "";
+    return typeof raw === "string" && raw.length > 0;
+  });
+}
+
+async function readChapterCache(page) {
+  return page.evaluate(() => {
+    const storageKey = globalThis.__toonlivreAidokuConfig?.chapterStorageKey;
+    return (
+      globalThis.__toonlivreAidokuTestAPI?.readChapterCache?.() ||
+      globalThis.__toonlivreAidokuChapterCache ||
+      (storageKey ? sessionStorage.getItem(storageKey) : "") ||
+      ""
+    );
+  });
+}
+
+async function readParsedChapterCache(page) {
+  const raw = await readChapterCache(page);
+  return {
+    raw,
+    parsed: raw ? JSON.parse(raw) : null,
+  };
+}
+
+async function readDebugState(page) {
+  return page.evaluate(() => ({
+    debug: globalThis.__toonlivreAidokuDebug || null,
+    config: globalThis.__toonlivreAidokuConfig || null,
+    cache: globalThis.__toonlivreAidokuTestAPI?.readChapterCache?.() || "",
+  }));
+}
+
+module.exports = {
+  INSTRUMENTATION_PATH,
+  INSTRUMENTATION_SOURCE,
+  WEBVIEW_USER_AGENT,
+  buildChapterStorageKey,
+  createInstrumentedContext,
+  createScenario,
+  openChapter,
+  readChapterCache,
+  readDebugState,
+  readParsedChapterCache,
+  waitForChapterCache,
+};

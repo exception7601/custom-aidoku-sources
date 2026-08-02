@@ -9,4 +9,7 @@
 /sources/*/public/
 /sources/*/package.aix
 /sources/*/target/
+/sources/*/node_modules/
+/sources/*/playwright-report/
+/sources/*/test-results/
 /token-server/wireguard/wg0.conf
