@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-02T17:58:52.000Z — `index-CLIZ-xjG.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CLIZ-xjG.js`
+- Saved folder: `bundle_v1785693532_index-CLIZ-xjG_js`
+- SHA-256: `36a542c0a03ce86301e9f575eeffab9b3e6bf2c2db104e97e530733c17307684`
+- Bytes: `504221`
+- Previous bundle: `bundle_v1785650025_index-BXraBG4t_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-02T05:53:45.000Z — `index-BXraBG4t.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BXraBG4t.js`
