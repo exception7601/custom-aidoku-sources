@@ -16,9 +16,8 @@ use super::{
 	WEBVIEW_CHAPTER_CACHE_GLOBAL_KEY, WEBVIEW_CHAPTER_LOAD_ATTEMPTS,
 	WEBVIEW_CHAPTER_LOAD_DELAY_SECONDS, WEBVIEW_USER_AGENT,
 	webview_support::{
-		WebViewChapterCache, build_webview_cookie_header, fetch_webview_debug_snapshot,
-		force_webview_visible_layout, log_webview_debug_snapshot, shorten_for_log,
-		update_webview_cookie_cache,
+		WebViewChapterCache, build_webview_cookie_header, force_webview_visible_layout,
+		shorten_for_log, sync_webview_debug_state,
 	},
 };
 
@@ -82,7 +81,7 @@ pub(super) fn fetch_chapter_via_webview(
 	load_chapter_page(&webview, chapter_url, &cookie_header)?;
 	force_webview_visible_layout(&webview)?;
 	source_log!("[toonlivre] webview visibility/layout forced");
-	log_current_snapshot(&webview, "webview after load")?;
+	sync_webview_debug_state(&webview, "webview after load")?;
 	wait_for_chapter_cache(&webview, chapter_url, manga_id, chapter_id, &storage_key)
 }
 
@@ -146,7 +145,7 @@ fn wait_for_chapter_cache(
 			);
 			return Ok(chapter);
 		}
-		log_current_snapshot(webview, &format!("webview wait attempt={attempt}"))?;
+		sync_webview_debug_state(webview, &format!("webview wait attempt={attempt}"))?;
 		if attempt < WEBVIEW_CHAPTER_LOAD_ATTEMPTS {
 			sleep(WEBVIEW_CHAPTER_LOAD_DELAY_SECONDS);
 		}
@@ -155,13 +154,6 @@ fn wait_for_chapter_cache(
 	bail!(
 		"WebView chapter cache not populated. URL: {chapter_url} manga_id={manga_id} chapter_id={chapter_id}"
 	)
-}
-
-fn log_current_snapshot(webview: &WebView, label: &str) -> Result<()> {
-	let snapshot = fetch_webview_debug_snapshot(webview)?;
-	update_webview_cookie_cache(&snapshot.cookie);
-	log_webview_debug_snapshot(label, &snapshot);
-	Ok(())
 }
 
 #[cfg(not(test))]

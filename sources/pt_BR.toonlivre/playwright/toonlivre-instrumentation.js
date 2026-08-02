@@ -40,6 +40,7 @@ const DEFAULT_SCENARIO = {
   chapterId: process.env.TOONLIVRE_CHAPTER_ID || "cap-d0b0082c-01",
   chapterNumber: process.env.TOONLIVRE_CHAPTER_NUMBER || "01",
   toonVCookie: process.env.TOONLIVRE_TOON_V || "",
+  debug: true,
   blockNonEssentialResources: true,
 };
 
@@ -60,13 +61,17 @@ function createScenario(overrides = {}) {
       vendor: "Apple Computer, Inc.",
       maxTouchPoints: 5,
       languageHeader: "pt-BR,pt;q=0.9",
+      cookieName: "toon_v",
       toonVCookie: merged.toonVCookie,
       chapterCacheGlobalKey: "__toonlivreAidokuChapterCache",
       chapterStorageKey: buildChapterStorageKey(merged.mangaId, merged.chapterId),
+      runtimeUrlHints: ["/api/reader/"],
+      payloadUrlHints: ["/api/"],
+      siteHostHints: ["toonlivre.net"],
       targetMangaId: merged.mangaId,
       targetChapterId: merged.chapterId,
       targetChapterNumber: merged.chapterNumber,
-      debug: true,
+      debug: merged.debug,
     },
   };
 }

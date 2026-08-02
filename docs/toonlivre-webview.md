@@ -11,10 +11,12 @@ The WebView flow is split across these files:
 - `sources/pt_BR.toonlivre/src/webview/instrumentation.js`
 - `sources/pt_BR.toonlivre/playwright/toonlivre-instrumentation.js`
 - `sources/pt_BR.toonlivre/playwright/instrumentation.smoke.spec.js`
+- `sources/pt_BR.toonlivre/playwright/instrumentation.unit.spec.js`
 
 `webview.rs` is the Rust orchestrator.
 `webview_support.rs` owns the debug snapshot structs, cookie helpers, config serialization, and JS bootstrapping helpers.
 `instrumentation.js` is the shared document-start script used both by Aidoku WebView and by Playwright.
+The file now keeps a generic core for payload detection and network/worker hooks, while `webview_support.rs` acts as the thin ToonLivre adapter that provides site-specific hints and cache keys.
 
 ## Runtime strategy
 
@@ -45,6 +47,8 @@ The boot script currently does all of the following:
 - captures runtime and proof debug events in `window.__toonlivreAidokuDebug`
 - captures chapter payloads from worker messages, `fetch`, and `XMLHttpRequest`
 - persists the normalized chapter payload into the shared cache keys
+- accepts adapter hints such as `runtimeUrlHints`, `payloadUrlHints`, `siteHostHints`, and `cookieName`
+- exposes pure helper internals for unit tests without making production behavior depend on debug mode
 
 ## Important implementation details
 
@@ -74,7 +78,16 @@ The instrumentation watches:
 - chapter `fetch` responses
 - chapter `XMLHttpRequest` responses
 
-Any valid chapter payload is normalized and persisted, which makes the Rust side much less fragile.
+Payload detection is now shape-based rather than tied to one exact response structure.
+The shared script recursively searches nested objects and arrays for likely chapter payloads and accepts page arrays under keys such as `pages`, `images`, and `pageUrls`.
+That keeps the core more reusable and makes the Rust side much less fragile.
+
+## Debug logging flag
+
+The expensive WebView debug path is now opt-in for normal release builds.
+Set `enable_debug_logs=1` to keep the full runtime snapshots, worker debug logs, and detailed layout diagnostics enabled.
+Builds produced with `debug_assertions` enabled, such as `scripts/release.sh --debug-logs`, also force the heavy debug path on.
+Without either of those, the source keeps the functional hooks needed for chapter capture, but skips the heavy debug collection path.
 
 ## Homepage preload status
 
@@ -88,6 +101,7 @@ The Rust flow now opens the chapter URL directly and no longer preloads the home
 
 A lightweight Playwright setup now exists directly under `sources/pt_BR.toonlivre`.
 It is meant to validate the shared `instrumentation.js`, not to replace final validation in the Aidoku app.
+The suite now covers both browser smoke flows and small unit tests for the generic helper logic.
 
 The Playwright helper:
 
@@ -99,12 +113,21 @@ The Playwright helper:
 - waits until the chapter cache is populated
 - inspects the debug store and worker events
 
-The current smoke test checks two scenarios:
+The current smoke test checks three scenarios:
 
 - with a homepage visit before the chapter
 - without a homepage visit before the chapter
+- with debug disabled
 
-The WebKit run passed in both scenarios, which is why the Rust path was simplified to direct chapter navigation.
+The WebKit run passed in all three scenarios, which is why the Rust path was simplified to direct chapter navigation while keeping functional hooks independent from debug logging.
+
+The unit test file validates the shared helper layer directly.
+It currently checks:
+
+- nested payload extraction by shape
+- chapter normalization with alias fields and Rust fallback values
+- runtime URL matching through configurable hints
+- payload inspection URL matching scoped by site hints
 
 ## Resource blocking in Playwright
 
@@ -130,8 +153,9 @@ The browser-side smoke test proves that:
 - `__toonlivreAidokuBoot(config)` executes at document start
 - the runtime worker flow still reaches chapter data
 - the chapter cache is populated with non-empty `pages`
-- the debug store records runtime, proof, and worker activity
+- the debug store records runtime, proof, and worker activity when debug is enabled
 - the direct chapter navigation path works in WebKit without a homepage preload
+- the functional chapter capture path still works when debug is disabled
 
 It does not prove that Aidoku itself is fully correct on-device.
 Final validation should still use `aidoku logcat` against the packaged source.
@@ -149,5 +173,6 @@ For Playwright validation:
 
 - `env -C sources/pt_BR.toonlivre npm install`
 - `env -C sources/pt_BR.toonlivre npm run playwright:install`
+- `env -C sources/pt_BR.toonlivre npm run test:unit`
 - `env -C sources/pt_BR.toonlivre npm run test:playwright:webkit`
 - `env -C sources/pt_BR.toonlivre npm run test:playwright:chromium`

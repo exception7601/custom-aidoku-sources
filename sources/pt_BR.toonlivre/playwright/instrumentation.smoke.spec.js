@@ -72,3 +72,35 @@ test("shared instrumentation still captures chapter pages without opening the ho
     await context.close();
   }
 });
+
+test("shared instrumentation still works with debug disabled", async ({ browser }) => {
+  const { context, scenario } = await createInstrumentedContext(browser, { debug: false });
+  const page = await context.newPage();
+
+  try {
+    await openChapter(page, scenario, { loadBasePage: false });
+
+    await expect
+      .poll(async () => {
+        try {
+          await waitForChapterCache(page);
+          const { parsed } = await readParsedChapterCache(page);
+          return parsed?.chapter?.pages?.length || 0;
+        } catch (_) {
+          return 0;
+        }
+      })
+      .toBeGreaterThan(0);
+
+    const { raw, parsed } = await readParsedChapterCache(page);
+    expect(raw).toBeTruthy();
+    expect(parsed).toBeTruthy();
+    expect(parsed.chapter.pages.length).toBeGreaterThan(0);
+
+    const state = await readDebugState(page);
+    expect(state.config).toBeTruthy();
+    expect(state.config.debug).toBeFalsy();
+  } finally {
+    await context.close();
+  }
+});

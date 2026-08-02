@@ -5,6 +5,9 @@ use aidoku::{
 	prelude::*,
 };
 
+#[cfg(not(test))]
+use aidoku::alloc::vec;
+
 use core::cell::RefCell;
 
 use serde::Deserialize;
@@ -12,7 +15,7 @@ use serde::Deserialize;
 #[cfg(not(test))]
 use serde::Serialize;
 
-use crate::{ApiChapterDetails, generate_session};
+use crate::{ApiChapterDetails, debug_logs_enabled, generate_session};
 
 #[cfg(not(test))]
 use crate::ACCEPT_LANGUAGE;
@@ -115,12 +118,20 @@ pub(super) struct WebViewInstrumentationConfig {
 	max_touch_points: i32,
 	#[serde(rename = "languageHeader")]
 	language_header: String,
+	#[serde(rename = "cookieName")]
+	cookie_name: String,
 	#[serde(rename = "toonVCookie")]
 	toon_v_cookie: String,
 	#[serde(rename = "chapterCacheGlobalKey")]
 	chapter_cache_global_key: String,
 	#[serde(rename = "chapterStorageKey")]
 	chapter_storage_key: String,
+	#[serde(rename = "runtimeUrlHints")]
+	runtime_url_hints: Vec<String>,
+	#[serde(rename = "payloadUrlHints")]
+	payload_url_hints: Vec<String>,
+	#[serde(rename = "siteHostHints")]
+	site_host_hints: Vec<String>,
 	#[serde(rename = "targetMangaId")]
 	target_manga_id: String,
 	#[serde(rename = "targetChapterId")]
@@ -230,13 +241,17 @@ pub(super) fn build_webview_instrumentation_config(
 		vendor: String::from(WEBVIEW_VENDOR),
 		max_touch_points: WEBVIEW_MAX_TOUCH_POINTS,
 		language_header: String::from(ACCEPT_LANGUAGE),
+		cookie_name: String::from("toon_v"),
 		toon_v_cookie: String::from(toon_v_cookie),
 		chapter_cache_global_key: String::from(WEBVIEW_CHAPTER_CACHE_GLOBAL_KEY),
 		chapter_storage_key: String::from(storage_key),
+		runtime_url_hints: vec![String::from("/api/reader/")],
+		payload_url_hints: vec![String::from("/api/")],
+		site_host_hints: vec![String::from("toonlivre.net")],
 		target_manga_id: String::from(manga_id),
 		target_chapter_id: String::from(chapter_id),
 		target_chapter_number: String::from(chapter_number_hint),
-		debug: true,
+		debug: debug_logs_enabled(),
 	}
 }
 
@@ -259,29 +274,67 @@ pub(super) fn force_webview_visible_layout(webview: &WebView) -> Result<()> {
 
 	#[cfg(not(test))]
 	{
+		let debug_enabled = debug_logs_enabled();
 		let config = build_webview_instrumentation_config("", "", "", "", "");
 		let config_json = serialize_webview_instrumentation_config(&config)?;
-		let raw = webview.eval(&format!(
+		if debug_enabled {
+			let raw = webview.eval(&format!(
+				r#"(() => {{
+					try {{
+						if (typeof globalThis.__toonlivreAidokuApplyLayoutPatch !== 'function') {{
+							{script}
+						}}
+						const result =
+							typeof globalThis.__toonlivreAidokuApplyLayoutPatch === 'function'
+								? globalThis.__toonlivreAidokuApplyLayoutPatch({config_json})
+								: {{ error: 'missing __toonlivreAidokuApplyLayoutPatch' }};
+						return JSON.stringify(result);
+					}} catch (error) {{
+						return JSON.stringify({{ error: String(error) }});
+					}}
+				}})()"#,
+				script = WEBVIEW_INSTRUMENTATION_SOURCE,
+				config_json = config_json,
+			))?;
+			source_log!("[toonlivre] webview layout patch result={raw}");
+			return Ok(());
+		}
+
+		webview.eval(&format!(
 			r#"(() => {{
 				try {{
 					if (typeof globalThis.__toonlivreAidokuApplyLayoutPatch !== 'function') {{
 						{script}
 					}}
-					const result =
-						typeof globalThis.__toonlivreAidokuApplyLayoutPatch === 'function'
-							? globalThis.__toonlivreAidokuApplyLayoutPatch({config_json})
-							: {{ error: 'missing __toonlivreAidokuApplyLayoutPatch' }};
-					return JSON.stringify(result);
+					if (typeof globalThis.__toonlivreAidokuApplyLayoutPatch === 'function') {{
+						globalThis.__toonlivreAidokuApplyLayoutPatch({config_json});
+					}}
+					return 'ok';
 				}} catch (error) {{
-					return JSON.stringify({{ error: String(error) }});
+					return String(error);
 				}}
 			}})()"#,
 			script = WEBVIEW_INSTRUMENTATION_SOURCE,
 			config_json = config_json,
 		))?;
-		source_log!("[toonlivre] webview layout patch result={raw}");
 		Ok(())
 	}
+}
+
+#[allow(dead_code)]
+pub(super) fn sync_webview_debug_state(webview: &WebView, label: &str) -> Result<()> {
+	if !debug_logs_enabled() {
+		let cookie = webview.eval("document.cookie || ''").map_err(|error| {
+			AidokuError::Message(format!("Failed to read WebView cookie.\nError: {error:?}"))
+		})?;
+		update_webview_cookie_cache(cookie.trim());
+		return Ok(());
+	}
+
+	let snapshot = fetch_webview_debug_snapshot(webview)?;
+	update_webview_cookie_cache(&snapshot.cookie);
+	log_webview_debug_snapshot(label, &snapshot);
+	Ok(())
 }
 
 #[allow(dead_code)]

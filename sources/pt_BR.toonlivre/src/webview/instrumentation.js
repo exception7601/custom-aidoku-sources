@@ -7,6 +7,7 @@
   }
 
   function pushDebug(debug, message) {
+    if (!debug || !debug.enabled) return;
     try {
       debug.events.push(String(message));
       if (debug.events.length > 60) {
@@ -16,6 +17,7 @@
   }
 
   function pushWorkerUrl(debug, value) {
+    if (!debug || !debug.enabled) return;
     try {
       debug.workerUrls.push(String(value || ""));
       if (debug.workerUrls.length > 16) {
@@ -27,6 +29,7 @@
   function createDebugStore(globalObject) {
     const debug = globalObject.__toonlivreAidokuDebug =
       globalObject.__toonlivreAidokuDebug || {
+        enabled: false,
         events: [],
         workerUrls: [],
         fingerprintProfile: "",
@@ -91,6 +94,12 @@
     }
   }
 
+  function normalizeStringList(value, fallback) {
+    if (!Array.isArray(value)) return fallback.slice();
+    const normalized = value.map((entry) => String(entry || "").trim()).filter(Boolean);
+    return normalized.length ? normalized : fallback.slice();
+  }
+
   function normalizeConfig(config) {
     return {
       width: Number(config && config.width) || 390,
@@ -101,11 +110,24 @@
       vendor: String((config && config.vendor) || global.navigator.vendor || ""),
       maxTouchPoints: Number(config && config.maxTouchPoints) || 5,
       languageHeader: String((config && config.languageHeader) || DEFAULT_LANGUAGE_HEADER),
+      cookieName: String((config && config.cookieName) || "toon_v"),
       toonVCookie: String((config && config.toonVCookie) || ""),
       chapterCacheGlobalKey: String(
         (config && config.chapterCacheGlobalKey) || "__toonlivreAidokuChapterCache"
       ),
       chapterStorageKey: String((config && config.chapterStorageKey) || ""),
+      runtimeUrlHints: normalizeStringList(
+        config && config.runtimeUrlHints,
+        ["/api/reader/"]
+      ),
+      payloadUrlHints: normalizeStringList(
+        config && config.payloadUrlHints,
+        ["/api/"]
+      ),
+      siteHostHints: normalizeStringList(
+        config && config.siteHostHints,
+        ["toonlivre.net"]
+      ),
       targetMangaId: String((config && config.targetMangaId) || ""),
       targetChapterId: String((config && config.targetChapterId) || ""),
       targetChapterNumber: String((config && config.targetChapterNumber) || ""),
@@ -284,24 +306,34 @@
     if (!config.toonVCookie) return;
     try {
       globalObject.document.cookie =
-        `toon_v=${config.toonVCookie}; Path=/; Max-Age=31536000; SameSite=Lax`;
-      pushDebug(debug, `cookie:set toon_v=${clip(config.toonVCookie)}`);
+        `${config.cookieName}=${config.toonVCookie}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      pushDebug(debug, `cookie:set ${clip(config.cookieName)}=${clip(config.toonVCookie)}`);
     } catch (error) {
       pushDebug(debug, `cookie:set-error error=${clip(error)}`);
     }
   }
 
-  function isRuntimeTarget(url) {
-    return (
-      String(url || "").includes("/api/reader/bootstrap") ||
-      String(url || "").includes("/api/reader/runtime") ||
-      String(url || "").includes("/api/reader/proof/verify")
-    );
+  function matchesAnyHint(value, hints) {
+    const normalized = String(value || "");
+    if (!normalized) return false;
+    return hints.some((hint) => normalized.includes(String(hint || "")));
   }
 
-  function isChapterTarget(url) {
-    const value = String(url || "");
-    return value.includes("/api/mangas/") && value.includes("/chapters/");
+  function isSiteTarget(url, config) {
+    const normalized = String(url || "");
+    if (!normalized) return false;
+    if (normalized.startsWith("/") || normalized.startsWith("blob:") || normalized.startsWith("data:")) {
+      return true;
+    }
+    return matchesAnyHint(normalized, config.siteHostHints);
+  }
+
+  function isRuntimeTarget(url, config) {
+    return matchesAnyHint(url, config.runtimeUrlHints);
+  }
+
+  function isPayloadInspectionTarget(url, config) {
+    return isSiteTarget(url, config) && matchesAnyHint(url, config.payloadUrlHints);
   }
 
   function appendAcceptLanguage(headers, languageHeader) {
@@ -326,20 +358,101 @@
     headers["Accept-Language"] = languageHeader;
   }
 
+  function normalizePageList(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map((page) => String(page || "").trim()).filter(Boolean);
+  }
+
+  function extractPageList(value) {
+    if (!value || typeof value !== "object") return [];
+    if (Array.isArray(value.pages)) return normalizePageList(value.pages);
+    if (Array.isArray(value.images)) return normalizePageList(value.images);
+    if (Array.isArray(value.pageUrls)) return normalizePageList(value.pageUrls);
+    return [];
+  }
+
+  function isLikelyChapterPayload(value) {
+    return extractPageList(value).length > 0;
+  }
+
+  function createVisitedTracker() {
+    return typeof WeakSet !== "undefined" ? new WeakSet() : [];
+  }
+
+  function hasVisited(tracker, value) {
+    if (!tracker || !value || typeof value !== "object") return false;
+    if (typeof tracker.has === "function") return tracker.has(value);
+    return tracker.includes(value);
+  }
+
+  function markVisited(tracker, value) {
+    if (!tracker || !value || typeof value !== "object") return;
+    if (typeof tracker.add === "function") {
+      tracker.add(value);
+      return;
+    }
+    tracker.push(value);
+  }
+
+  function extractChapterPayloadCandidate(value, maxDepth = 6, tracker) {
+    if (!value || maxDepth < 0) return null;
+    if (isLikelyChapterPayload(value)) return value;
+    if (typeof value !== "object") return null;
+
+    const visited = tracker || createVisitedTracker();
+    if (hasVisited(visited, value)) return null;
+    markVisited(visited, value);
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const candidate = extractChapterPayloadCandidate(entry, maxDepth - 1, visited);
+        if (candidate) return candidate;
+      }
+      return null;
+    }
+
+    const priorityKeys = ["chapter", "data", "payload", "result", "response", "reader"];
+    for (const key of priorityKeys) {
+      if (key in value) {
+        const candidate = extractChapterPayloadCandidate(value[key], maxDepth - 1, visited);
+        if (candidate) return candidate;
+      }
+    }
+
+    for (const key of Object.keys(value)) {
+      const candidate = extractChapterPayloadCandidate(value[key], maxDepth - 1, visited);
+      if (candidate) return candidate;
+    }
+
+    return null;
+  }
+
   function normalizeChapterPayload(value, config) {
-    if (!value || typeof value !== "object" || !Array.isArray(value.pages)) return null;
-    const pages = value.pages.map((page) => String(page || "").trim()).filter(Boolean);
+    const candidate = extractChapterPayloadCandidate(value);
+    if (!candidate) return null;
+
+    const pages = extractPageList(candidate);
     if (!pages.length) return null;
+
     return {
-      id: String(value.id || config.targetChapterId),
+      id: String(candidate.id || candidate.chapterId || config.targetChapterId),
       pages,
-      title: typeof value.title === "string" ? value.title : "",
+      title: typeof candidate.title === "string" ? candidate.title : "",
       number: String(
-        value.number || value.chapterNumber || config.targetChapterNumber || config.targetChapterId
+        candidate.number ||
+          candidate.chapterNumber ||
+          candidate.chapter_number ||
+          config.targetChapterNumber ||
+          config.targetChapterId
       ),
-      mangaId: String(value.mangaId || value.manga_id || config.targetMangaId),
-      timestamp: Number(value.timestamp || 0) || 0,
-      releaseDate: typeof value.releaseDate === "string" ? value.releaseDate : "",
+      mangaId: String(
+        candidate.mangaId ||
+          candidate.manga_id ||
+          candidate.seriesId ||
+          config.targetMangaId
+      ),
+      timestamp: Number(candidate.timestamp || 0) || 0,
+      releaseDate: typeof candidate.releaseDate === "string" ? candidate.releaseDate : "",
     };
   }
 
@@ -363,10 +476,7 @@
 
   function captureChapterMessage(globalObject, config, debug, value, source) {
     try {
-      if (persistChapterCache(globalObject, config, debug, value, `${source}:direct`)) return true;
-      if (Array.isArray(value) && value.length >= 3) {
-        return persistChapterCache(globalObject, config, debug, value[2], `${source}:array[2]`);
-      }
+      return persistChapterCache(globalObject, config, debug, value, source);
     } catch (_) {}
     return false;
   }
@@ -379,16 +489,18 @@
     );
   }
 
-  function buildWorkerShimSource(workerSourceUrl, languageHeader) {
+  function buildWorkerShimSource(workerSourceUrl, config) {
     return `
 (() => {
   const DEBUG_MESSAGE_KEY = ${JSON.stringify(DEBUG_MESSAGE_KEY)};
   const ORIGINAL_URL = ${JSON.stringify(workerSourceUrl)};
-  const LANGUAGE_HEADER = ${JSON.stringify(languageHeader)};
+  const LANGUAGE_HEADER = ${JSON.stringify(config.languageHeader)};
+  const RUNTIME_URL_HINTS = ${JSON.stringify(config.runtimeUrlHints)};
+  const SITE_HOST_HINTS = ${JSON.stringify(config.siteHostHints)};
   const clip = ${clip.toString()};
   const normalizeUrl = ${normalizeUrl.toString()};
   const describeData = ${describeData.toString()};
-  const isRuntimeTarget = ${isRuntimeTarget.toString()};
+  const matchesAnyHint = ${matchesAnyHint.toString()};
   const appendAcceptLanguage = ${appendAcceptLanguage.toString()};
   const resolveUrl = (value) => {
     const normalized = normalizeUrl(value);
@@ -398,6 +510,15 @@
     } catch (_) {
       return normalized;
     }
+  };
+  const isRuntimeTarget = (url) => matchesAnyHint(String(url || ""), RUNTIME_URL_HINTS);
+  const isSiteTarget = (url) => {
+    const normalized = String(url || "");
+    if (!normalized) return false;
+    if (normalized.startsWith("/") || normalized.startsWith("blob:") || normalized.startsWith("data:")) {
+      return true;
+    }
+    return matchesAnyHint(normalized, SITE_HOST_HINTS);
   };
   const originalPostMessage = self.postMessage.bind(self);
   const sendDebug = (message) => {
@@ -493,10 +614,7 @@
     const originalSend = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.send = function sendPatched(body) {
       try {
-        if (
-          this.__toonlivreUrl &&
-          (this.__toonlivreUrl.startsWith("/") || this.__toonlivreUrl.includes("toonlivre.net"))
-        ) {
+        if (this.__toonlivreUrl && isSiteTarget(this.__toonlivreUrl)) {
           this.setRequestHeader("Accept-Language", LANGUAGE_HEADER);
         }
         if (isRuntimeTarget(this.__toonlivreUrl)) {
@@ -562,7 +680,7 @@
     }
 
     const source = [
-      buildWorkerShimSource(workerSourceUrl, config.languageHeader),
+      buildWorkerShimSource(workerSourceUrl, config),
       runtimeSource,
       `\n//# sourceURL=${workerSourceUrl}`,
     ].join("\n");
@@ -582,22 +700,28 @@
       const workerLabel = normalizedUrl || absoluteUrl || clip(url);
       const isModuleWorker = !!(options && options.type === "module");
 
-      pushWorkerUrl(debug, workerLabel);
-      if (isRuntimeTarget(workerLabel)) {
-        pushDebug(debug, `worker:create url=${clip(workerLabel)}`);
+      if (config.debug) {
+        pushWorkerUrl(debug, workerLabel);
+        if (isRuntimeTarget(workerLabel, config)) {
+          pushDebug(debug, `worker:create url=${clip(workerLabel)}`);
+        }
       }
 
       let workerUrl = url;
       let proxyUrl = null;
-      if (isRuntimeTarget(workerLabel) && !isModuleWorker) {
+      if (isRuntimeTarget(workerLabel, config) && !isModuleWorker) {
         try {
           proxyUrl = buildWorkerProxyUrl(globalObject, config, debug, absoluteUrl || workerLabel);
           workerUrl = proxyUrl;
-          pushDebug(debug, `worker:proxy url=${clip(workerLabel)} proxy=${clip(proxyUrl)}`);
+          if (config.debug) {
+            pushDebug(debug, `worker:proxy url=${clip(workerLabel)} proxy=${clip(proxyUrl)}`);
+          }
         } catch (error) {
-          pushDebug(debug, `worker:proxy-error url=${clip(workerLabel)} error=${clip(error)}`);
+          if (config.debug) {
+            pushDebug(debug, `worker:proxy-error url=${clip(workerLabel)} error=${clip(error)}`);
+          }
         }
-      } else if (isRuntimeTarget(workerLabel) && isModuleWorker) {
+      } else if (config.debug && isRuntimeTarget(workerLabel, config) && isModuleWorker) {
         pushDebug(debug, `worker:proxy-skip-module url=${clip(workerLabel)}`);
       }
 
@@ -616,14 +740,18 @@
 
       const originalPostMessage = worker.postMessage;
       worker.postMessage = function postMessagePatched(message, transfer) {
-        pushDebug(debug, `worker:main-postMessage url=${clip(workerLabel)} data=${describeData(message)}`);
+        if (config.debug) {
+          pushDebug(debug, `worker:main-postMessage url=${clip(workerLabel)} data=${describeData(message)}`);
+        }
         return originalPostMessage.apply(this, arguments);
       };
 
       worker.addEventListener("message", (event) => {
         const data = event && event.data;
         if (data && typeof data === "object" && data[DEBUG_MESSAGE_KEY]) {
-          pushDebug(debug, String(data.message || "worker:debug"));
+          if (config.debug) {
+            pushDebug(debug, String(data.message || "worker:debug"));
+          }
           if (typeof event.stopImmediatePropagation === "function") {
             event.stopImmediatePropagation();
           }
@@ -633,23 +761,31 @@
           return;
         }
         helpers.captureChapterMessage(data, `worker-message url=${workerLabel}`);
-        pushDebug(debug, `worker:message url=${clip(workerLabel)} data=${describeData(data)}`);
+        if (config.debug) {
+          pushDebug(debug, `worker:message url=${clip(workerLabel)} data=${describeData(data)}`);
+        }
       });
 
       worker.addEventListener("error", (event) => {
-        pushDebug(
-          debug,
-          `worker:error-event url=${clip(workerLabel)} message=${clip(event && event.message)} filename=${clip(event && event.filename)} lineno=${(event && event.lineno) || 0} colno=${(event && event.colno) || 0}`
-        );
+        if (config.debug) {
+          pushDebug(
+            debug,
+            `worker:error-event url=${clip(workerLabel)} message=${clip(event && event.message)} filename=${clip(event && event.filename)} lineno=${(event && event.lineno) || 0} colno=${(event && event.colno) || 0}`
+          );
+        }
       });
 
       worker.addEventListener("messageerror", () => {
-        pushDebug(debug, `worker:messageerror-event url=${clip(workerLabel)}`);
+        if (config.debug) {
+          pushDebug(debug, `worker:messageerror-event url=${clip(workerLabel)}`);
+        }
       });
 
       const originalTerminate = worker.terminate;
       worker.terminate = function terminatePatched() {
-        pushDebug(debug, `worker:terminate url=${clip(workerLabel)}`);
+        if (config.debug) {
+          pushDebug(debug, `worker:terminate url=${clip(workerLabel)}`);
+        }
         if (proxyUrl) {
           try {
             URL.revokeObjectURL(proxyUrl);
@@ -673,24 +809,27 @@
     async function fetchPatched(resource, init) {
       const requestInit = init || {};
       requestInit.headers = requestInit.headers || {};
-      appendAcceptLanguage(requestInit.headers, config.languageHeader);
       const url = normalizeUrl(resource);
       const method =
         requestInit.method ||
         (typeof Request !== "undefined" && resource instanceof Request ? resource.method : "GET");
 
-      if (isRuntimeTarget(url)) {
+      if (isSiteTarget(url, config)) {
+        appendAcceptLanguage(requestInit.headers, config.languageHeader);
+      }
+      const shouldDebugRuntime = config.debug && isRuntimeTarget(url, config);
+      if (shouldDebugRuntime) {
         pushDebug(debug, `fetch:start method=${clip(method)} url=${clip(url)}`);
       }
 
       try {
         const response = await originalFetch.call(this, resource, requestInit);
-        if (isRuntimeTarget(url)) {
+        if (shouldDebugRuntime) {
           response.clone().text()
             .then((body) => pushDebug(debug, `fetch:done status=${response.status} url=${clip(url)} body=${clip(body)}`))
             .catch((error) => pushDebug(debug, `fetch:done status=${response.status} url=${clip(url)} body_error=${clip(error)}`));
         }
-        if (isChapterTarget(url)) {
+        if (isPayloadInspectionTarget(url, config)) {
           response.clone().text()
             .then((body) => {
               try {
@@ -703,7 +842,7 @@
         }
         return response;
       } catch (error) {
-        if (isRuntimeTarget(url)) {
+        if (shouldDebugRuntime) {
           pushDebug(debug, `fetch:error method=${clip(method)} url=${clip(url)} error=${clip(error)}`);
         }
         throw error;
@@ -723,7 +862,8 @@
     proto.open = function openPatched(method, url) {
       this._toonlivreMethod = method;
       this._toonlivreUrl = normalizeUrl(url);
-      if (isRuntimeTarget(this._toonlivreUrl)) {
+      const shouldDebugRuntime = config.debug && isRuntimeTarget(this._toonlivreUrl, config);
+      if (shouldDebugRuntime) {
         pushDebug(debug, `xhr:open method=${clip(method)} url=${clip(this._toonlivreUrl)}`);
       }
       return originalOpen.apply(this, arguments);
@@ -733,13 +873,11 @@
     const originalSend = proto.send;
     proto.send = function sendPatched(body) {
       try {
-        if (
-          this._toonlivreUrl &&
-          (this._toonlivreUrl.startsWith("/") || this._toonlivreUrl.includes("toonlivre.net"))
-        ) {
+        if (this._toonlivreUrl && isSiteTarget(this._toonlivreUrl, config)) {
           this.setRequestHeader("Accept-Language", config.languageHeader);
         }
-        if (isRuntimeTarget(this._toonlivreUrl)) {
+        const shouldDebugRuntime = config.debug && isRuntimeTarget(this._toonlivreUrl, config);
+        if (shouldDebugRuntime) {
           const method = this._toonlivreMethod || "GET";
           pushDebug(debug, `xhr:send method=${clip(method)} url=${clip(this._toonlivreUrl)} body=${clip(body)}`);
           this.addEventListener("load", () => {
@@ -749,7 +887,7 @@
             pushDebug(debug, `xhr:error url=${clip(this._toonlivreUrl)}`);
           }, { once: true });
         }
-        if (isChapterTarget(this._toonlivreUrl)) {
+        if (isPayloadInspectionTarget(this._toonlivreUrl, config)) {
           this.addEventListener("load", () => {
             try {
               helpers.persistChapterCache(JSON.parse(this.responseText || "{}"), `xhr url=${this._toonlivreUrl}`);
@@ -793,6 +931,12 @@
     const normalized = normalizeConfig(config || state.config || {});
     const debug = state.debug;
 
+    debug.enabled = normalized.debug;
+    if (!debug.enabled) {
+      debug.events = [];
+      debug.workerUrls = [];
+    }
+
     state.config = normalized;
     global.__toonlivreAidokuConfig = normalized;
     global.__toonlivreAidokuApplyLayoutPatch = (nextConfig) =>
@@ -808,7 +952,9 @@
 
     setToonVCookie(global, normalized, debug);
     applyLayoutPatch(global, normalized);
-    pushDebug(debug, `fingerprint profile=${debug.fingerprintProfile} ua=${normalized.userAgent}`);
+    if (normalized.debug) {
+      pushDebug(debug, `fingerprint profile=${debug.fingerprintProfile} ua=${normalized.userAgent}`);
+    }
 
     if (!state.booted) {
       installWorkerHooks(global, normalized, debug, helpers);
@@ -824,4 +970,15 @@
 
   global.__toonlivreAidokuBoot = boot;
   global.__toonlivreAidokuApplyLayoutPatch = (config) => applyLayoutPatch(global, config || {});
+  global.__toonlivreAidokuInternals = {
+    normalizeConfig,
+    matchesAnyHint,
+    isRuntimeTarget: (url, config) => isRuntimeTarget(url, normalizeConfig(config || {})),
+    isPayloadInspectionTarget: (url, config) =>
+      isPayloadInspectionTarget(url, normalizeConfig(config || {})),
+    extractPageList,
+    extractChapterPayloadCandidate,
+    normalizeChapterPayload: (value, config) =>
+      normalizeChapterPayload(value, normalizeConfig(config || {})),
+  };
 })(globalThis);

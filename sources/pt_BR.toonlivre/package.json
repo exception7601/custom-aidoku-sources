@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "playwright:install": "playwright install chromium webkit",
+    "test:unit": "playwright test playwright/instrumentation.unit.spec.js",
     "test:playwright": "playwright test",
     "test:playwright:chromium": "playwright test --project=chromium",
     "test:playwright:webkit": "playwright test --project=webkit"
