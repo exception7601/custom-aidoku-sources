@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-03T06:17:52.000Z — `index-DxoI3OgV.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DxoI3OgV.js`
+- Saved folder: `bundle_v1785737872_index-DxoI3OgV_js`
+- SHA-256: `d92b8d1a0f944892cf964ae16dcccb21b48897aed098bf97f5855dc289c8bd6e`
+- Bytes: `506745`
+- Previous bundle: `bundle_v1785698171_index-C_ACqayO_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-02T19:16:11.000Z — `index-C_ACqayO.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-C_ACqayO.js`
