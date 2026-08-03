@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-03T10:39:03.000Z — `index-ChDmDW7M.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-ChDmDW7M.js`
+- Saved folder: `bundle_v1785753543_index-ChDmDW7M_js`
+- SHA-256: `67247f962d336e56a7b494f031853eba19bd4f3ee4c6d44eaa7b6ae15e2b45f0`
+- Bytes: `508579`
+- Previous bundle: `bundle_v1785737872_index-DxoI3OgV_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-03T06:17:52.000Z — `index-DxoI3OgV.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DxoI3OgV.js`
