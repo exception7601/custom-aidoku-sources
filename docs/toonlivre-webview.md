@@ -175,4 +175,3 @@ For Playwright validation:
 - `env -C sources/pt_BR.toonlivre npm run playwright:install`
 - `env -C sources/pt_BR.toonlivre npm run test:unit`
 - `env -C sources/pt_BR.toonlivre npm run test:playwright:webkit`
-- `env -C sources/pt_BR.toonlivre npm run test:playwright:chromium`
