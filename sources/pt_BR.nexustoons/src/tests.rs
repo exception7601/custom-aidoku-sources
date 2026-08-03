@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
-	map_list_response,
+	map_list_response, parse_webview_chapter_pages_cache, parse_webview_manga_cache,
 	source::{chapter_from_api, manga_from_card},
+	webview_chapter_storage_key, webview_manga_storage_key,
 };
 use aidoku::{
 	DeepLinkResult, HomeComponentValue, ImageRequestProvider, Source,
@@ -101,21 +102,21 @@ fn helper_maps_chapter_to_url_and_title() {
 fn helper_maps_list_response() {
 	let response: ApiListResponse = serde_json::from_str(
 		r#"{
-			"data": [
-				{
-					"id": 758,
-					"title": "Test Manga",
-					"slug": "test-manga",
-					"coverUrl": "https://example.com/cover.jpg",
-					"alternativeTitle": "Alt title",
-					"recentChapters": []
-				}
-			],
-			"limit": 50,
-			"page": 1,
-			"pages": 2,
-			"total": 1
-		}"#,
+      "data": [
+        {
+          "id": 758,
+          "title": "Test Manga",
+          "slug": "test-manga",
+          "coverUrl": "https://example.com/cover.jpg",
+          "alternativeTitle": "Alt title",
+          "recentChapters": []
+        }
+      ],
+      "limit": 50,
+      "page": 1,
+      "pages": 2,
+      "total": 1
+    }"#,
 	)
 	.expect("response should deserialize");
 	let mapped = map_list_response(&response);
@@ -130,13 +131,67 @@ fn helper_maps_list_response() {
 fn helper_extracts_page_urls_from_json() {
 	let pages: Vec<String> = serde_json::from_str(
 		r#"[
-			"https://img.nx-toons.xyz/manga_pages/758/73801/page_001.webp",
-			"https://img.nx-toons.xyz/manga_pages/758/73801/page_002.webp"
-		]"#,
+      "https://img.nx-toons.xyz/manga_pages/758/73801/page_001.webp",
+      "https://img.nx-toons.xyz/manga_pages/758/73801/page_002.webp"
+    ]"#,
 	)
 	.expect("pages should deserialize");
 	assert_eq!(pages.len(), 2);
 	assert!(pages[0].contains("manga_pages"));
+}
+
+#[aidoku_test]
+fn helper_parses_webview_manga_cache() {
+	let storage_key = webview_manga_storage_key(SAMPLE_MANGA_SLUG);
+	let parsed = parse_webview_manga_cache(
+		r#"{
+      "manga": {
+        "title": "Test Manga",
+        "coverUrl": "https://example.com/cover.jpg",
+        "description": "Test description",
+        "status": "ongoing",
+        "chapters": [
+          {
+            "id": 397924,
+            "number": "45",
+            "title": "",
+            "dateUploaded": "2026-07-29T07:11:46.030197+02:00"
+          }
+        ]
+      }
+    }"#,
+		&storage_key,
+	)
+	.expect("manga cache should parse");
+
+	assert_eq!(parsed.title, "Test Manga");
+	assert_eq!(
+		parsed.cover_url.as_deref(),
+		Some("https://example.com/cover.jpg")
+	);
+	assert_eq!(parsed.description.as_deref(), Some("Test description"));
+	assert_eq!(parsed.status.as_deref(), Some("ongoing"));
+	assert_eq!(parsed.chapters.len(), 1);
+	assert_eq!(parsed.chapters[0].id, 397924);
+	assert_eq!(parsed.chapters[0].number.as_deref(), Some("45"));
+}
+
+#[aidoku_test]
+fn helper_parses_webview_chapter_pages_cache() {
+	let storage_key = webview_chapter_storage_key(SAMPLE_MANGA_SLUG, "397924");
+	let parsed = parse_webview_chapter_pages_cache(
+		r#"{
+      "pages": [
+        "https://img.nx-toons.xyz/manga_pages/758/73801/page_001.webp",
+        "https://img.nx-toons.xyz/manga_pages/758/73801/page_002.webp"
+      ]
+    }"#,
+		&storage_key,
+	)
+	.expect("chapter pages cache should parse");
+
+	assert_eq!(parsed.len(), 2);
+	assert!(parsed[0].contains("manga_pages"));
 }
 
 // Live integration tests.

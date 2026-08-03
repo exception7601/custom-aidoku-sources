@@ -71,10 +71,6 @@ pub(crate) fn manga_status_from_text(status: &str) -> MangaStatus {
 	}
 }
 
-pub(crate) fn date_from_timestamp_millis(timestamp: i64) -> Option<i64> {
-	(timestamp > 0).then_some(timestamp / 1000)
-}
-
 pub(crate) fn path_segments(url: &str) -> Vec<String> {
 	let mut cleaned = url.trim();
 	if let Some((_, rest)) = cleaned.split_once("://") {

@@ -1,61 +1,175 @@
 # NexusToons WebView Strategy
 
-This document describes how `pt_BR.nexustoons` loads manga details and chapters from `nexustoons.com`.
+This document tracks the current `pt_BR.nexustoons` strategy for list APIs, WebView capture, and Playwright validation.
 
-## API flow
+## Current file layout
 
-Home mirrors the simpler `pt_BR.montetaiscanlator` pattern and uses a single manga list component backed by the public JSON API.
-Search uses the same API with pagination.
+The `NexusToons` source is now split across these files:
+
+- `sources/pt_BR.nexustoons/src/source/mod.rs`
+- `sources/pt_BR.nexustoons/src/source/manga.rs`
+- `sources/pt_BR.nexustoons/src/source/webview.rs`
+- `sources/pt_BR.nexustoons/src/source/webview_support.rs`
+- `sources/pt_BR.nexustoons/src/webview/instrumentation.js`
+- `sources/pt_BR.nexustoons/playwright/nexustoons-instrumentation.js`
+- `sources/pt_BR.nexustoons/playwright/instrumentation.smoke.spec.js`
+- `sources/pt_BR.nexustoons/playwright/instrumentation.unit.spec.js`
+
+`mod.rs` owns the Aidoku `Source` and `Home` implementations.
+`manga.rs` owns list mapping and chapter normalization.
+`webview.rs` owns the manga-detail and chapter-page orchestration.
+`webview_support.rs` owns cache parsing, config serialization, and layout/debug helpers.
+`instrumentation.js` is the shared document-start script used both by Aidoku WebView and by Playwright.
+
+## What the site exposes directly
+
+The public list API is still straightforward.
 The verified endpoints are:
 
 - `GET /api/mangas?page={page}&limit={limit}`
 - `GET /api/mangas?search={query}&page={page}&limit={limit}`
 
-The API returns a paginated payload with `data`, `page`, `pages`, and `total`.
-The source maps that payload directly into Aidoku manga entries.
+Those responses are mapped directly into Aidoku list entries.
 
-Home uses `GET /api/mangas?page={page}&limit={limit}` and renders one manga grid/list component.
-Search uses `GET /api/mangas?search={query}&page={page}&limit={limit}` and keeps infinite scrolling by advancing `page` while preserving `limit`.
+The detail and reader flows are not equally friendly.
+`/api/manga/{id}` returns an encrypted wrapper such as `{ "d": "...", "k": 2, "v": 2 }`.
+Direct chapter endpoints such as `/api/chapter/{id}` return unauthorized responses when requested outside the page flow.
+The HTML pages are mostly SPA shells, so plain `curl` on `/manga/...` and `/ler/...` does not expose the decoded reader state or page URLs server-side.
 
-## WebView flow for manga details
+Because of that, this source still uses a WebView for manga details and chapter pages.
+This pass intentionally avoids reimplementing the site decrypt logic in Rust.
+Instead, it captures the decoded runtime data inside the browser environment and keeps the JS side more testable.
 
-Manga detail pages are loaded in a background `WebView`.
-The page already contains the decoded manga object in browser runtime state.
-The source captures that object instead of reproducing any decrypt logic in Rust.
+## Shared instrumentation strategy
 
-The WebView script does three things.
+`src/webview/instrumentation.js` exposes:
 
-- It patches visibility and viewport checks so the page hydrates in the background.
-- It intercepts `JSON.parse`, `fetch`, and `XMLHttpRequest` to capture manga JSON.
-- It opens the chapter list and retries capture a few times until the full object is available.
+- `globalThis.__nexustoonsAidokuBoot(config)`
+- `globalThis.__nexustoonsAidokuApplyLayoutPatch(config)`
+- `globalThis.__nexustoonsAidokuOpenChapterList()`
+- `globalThis.__nexustoonsAidokuCaptureMangaNow()`
+- `globalThis.__nexustoonsAidokuCollectChapterPagesNow()`
 
-## Captured payload shape
+The Rust side injects the file through `WebViewUserScript`.
+The Playwright side injects the exact same file through `context.addInitScript(...)`.
 
-The captured JSON is intentionally sanitized before being sent back to Rust.
-Only the fields needed by the source are kept.
+The script is organized as a generic core plus a thin `NexusToons` adapter config.
+The generic core owns:
 
-- `title`
-- `coverUrl`
-- `description`
-- `status`
-- `chapters`
+- layout and visibility patching
+- `Accept-Language` normalization
+- JSON, `fetch`, and `XMLHttpRequest` hooks
+- recursive payload extraction helpers
+- chapter-image collection helpers
+- cache persistence helpers
+- testable pure internals
 
-Each chapter keeps only:
+The adapter config provides site-specific hints such as:
 
-- `id`
-- `number`
-- `title`
-- `date_uploaded`
+- `siteHostHints`
+- `mangaPageUrlHints`
+- `chapterPageUrlHints`
+- `mangaPayloadUrlHints`
+- `chapterButtonTextHints`
+- `chapterLinkUrlHints`
+- `reactRootSelectors`
+- `chapterImageUrlHints`
 
-This avoids duplicate field errors and keeps the parser tolerant of missing or nullable site data.
+## Cache contract
 
-## Rust-side handling
+The shared script persists two caches.
 
-Rust maps the captured manga object into Aidoku structs.
-Chapter titles fall back to `Capítulo {number}` when empty.
-Chapter timestamps are not trusted from the page capture and are filled with the current date.
+For manga details:
 
-## Notes
+- global key `__nexustoonsAidokuMangaCache`
+- storage key format `nexustoons_manga_cache_v1:{slug}`
 
-The implementation is designed to stay generic and stable.
-It avoids site-specific decrypt code and relies on browser-captured JSON plus the documented API endpoints.
+For chapter page URLs:
+
+- global key `__nexustoonsAidokuChapterPagesCache`
+- storage key format `nexustoons_chapter_pages_cache_v1:{slug}:{chapterId}`
+
+Rust reads from the global first and falls back to `sessionStorage`.
+That makes the contract consistent with Playwright and removes the old inline `eval` scripts that rebuilt extraction logic on every poll.
+
+## Manga detail capture flow
+
+For manga pages, the shared script now does the following:
+
+- patches the page to look like a visible iPhone-sized WebKit surface
+- hooks `JSON.parse`, `fetch`, and `XMLHttpRequest`
+- clicks the `Capítulos` button using configurable text hints
+- recursively searches decoded objects for a likely manga payload shape
+- falls back to traversing React roots from configurable DOM seeds
+- normalizes the result into `{ title, coverUrl, description, status, chapters }`
+- persists the best payload by chapter count
+
+The important point is that the capture is now shape-based rather than tied to one exact object path.
+If the site moves the decoded object deeper inside a wrapper, the generic extractor still has a good chance of finding it.
+
+## Chapter page capture flow
+
+For chapter pages, the shared script now does the following:
+
+- patches the same mobile visibility/fingerprint surface
+- scans image elements for URLs matching `chapterImageUrlHints`
+- scrolls the page in scheduled steps to trigger lazy rendering
+- keeps collecting URLs through a mutation observer
+- persists the best page list into the shared chapter cache
+
+This replaces the old Rust-side pattern of repeatedly running one large inline collector script.
+The Rust side now just nudges the shared helpers and waits for the cache.
+That keeps the logic closer to the browser and makes it reusable in Playwright.
+
+## Rust-side polling and debug behavior
+
+Rust keeps a conservative whole-second polling loop because `sleep` only supports integer seconds.
+The current constants remain:
+
+- `WEBVIEW_LOAD_ATTEMPTS = 4`
+- `WEBVIEW_LOAD_DELAY_SECONDS = 1`
+
+That gives one immediate check plus up to three delayed retries.
+The shared JS now performs earlier scheduled capture work, so the wait loop mostly polls the cache instead of rebuilding the extraction logic.
+
+Heavy debug logging is opt-in in release builds.
+`enable_debug_logs=1` or `debug_assertions` enables the full debug snapshot path.
+Without that flag, the functional hooks still run, but the expensive logging path stays off.
+
+## Playwright coverage
+
+A local Playwright setup now exists under `sources/pt_BR.nexustoons`.
+It validates the shared `instrumentation.js` in real browsers and keeps the browser-side behavior close to the Aidoku WebView path.
+
+The helper creates an iPhone-like browser context and injects the same boot config shape that Rust uses.
+It also uses conditional waits for cache readiness instead of fixed sleeps.
+
+The current smoke suite validates:
+
+- manga-detail capture from the real `/manga/...` flow
+- chapter page URL capture from the real `/ler/...` flow
+- chapter page capture with debug disabled
+
+The current unit suite validates:
+
+- nested manga payload extraction by shape
+- normalization of aliases such as `coverImage` and chapter metadata
+- image URL filtering and deduplication
+- site-scoped endpoint matching for manga payload requests
+
+## Useful commands
+
+For Rust validation:
+
+- `env -C sources/pt_BR.nexustoons cargo fmt`
+- `env -C sources/pt_BR.nexustoons cargo test helper_parses_webview_manga_cache -- --nocapture`
+- `env -C sources/pt_BR.nexustoons cargo test helper_parses_webview_chapter_pages_cache -- --nocapture`
+- `env -C sources/pt_BR.nexustoons cargo clippy`
+
+For Playwright validation:
+
+- `env -C sources/pt_BR.nexustoons npm install`
+- `env -C sources/pt_BR.nexustoons npm run playwright:install`
+- `env -C sources/pt_BR.nexustoons npm run test:unit`
+- `env -C sources/pt_BR.nexustoons npm run test:playwright:webkit`
+- `env -C sources/pt_BR.nexustoons npm run test:playwright:chromium`
