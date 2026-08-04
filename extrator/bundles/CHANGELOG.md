@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-04T04:09:54.000Z — `index-Z6Xs-VG7.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Z6Xs-VG7.js`
+- Saved folder: `bundle_v1785816594_index-Z6Xs-VG7_js`
+- SHA-256: `6bcc70ff6a4b130e649373ab1543ca14dabd6169d8b9075c6716f59dbc6dd70d`
+- Bytes: `513221`
+- Previous bundle: `bundle_v1785774008_index-BjZ3fxx3_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-03T16:20:08.000Z — `index-BjZ3fxx3.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BjZ3fxx3.js`
