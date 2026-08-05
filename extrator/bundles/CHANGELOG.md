@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-05T06:27:41.000Z — `index-CfyIIACy.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CfyIIACy.js`
+- Saved folder: `bundle_v1785911261_index-CfyIIACy_js`
+- SHA-256: `3021186f32dc8bfd62ef81f9edc06482fe8f23e384bb62805d7685dbfd68ff41`
+- Bytes: `516021`
+- Previous bundle: `bundle_v1785828901_index-BJCUi9u0_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-04T07:35:01.000Z — `index-BJCUi9u0.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BJCUi9u0.js`
