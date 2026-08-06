@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-06T05:44:29.000Z — `index-BeSYo4v3.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BeSYo4v3.js`
+- Saved folder: `bundle_v1785995069_index-BeSYo4v3_js`
+- SHA-256: `270b1e9998bd9d94cbf783f57b3100b9d611f42998ad52d8736bf93455c23ab7`
+- Bytes: `516261`
+- Previous bundle: `bundle_v1785911261_index-CfyIIACy_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-05T06:27:41.000Z — `index-CfyIIACy.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CfyIIACy.js`
