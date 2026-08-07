@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-07T12:53:39.000Z — `index-Dm2mWbMX.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dm2mWbMX.js`
+- Saved folder: `bundle_v1786107219_index-Dm2mWbMX_js`
+- SHA-256: `ffa7ffb30ac0ae761008a7fb0ea6001c16fdd823ff75c634f41ce97b8f80cfe1`
+- Bytes: `516250`
+- Previous bundle: `bundle_v1786081063_index-ShdPy9WT_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-07T05:37:43.000Z — `index-ShdPy9WT.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-ShdPy9WT.js`
