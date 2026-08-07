@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-07T05:37:43.000Z — `index-ShdPy9WT.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-ShdPy9WT.js`
+- Saved folder: `bundle_v1786081063_index-ShdPy9WT_js`
+- SHA-256: `2604be629ee7591c0383ecc11ca092d6843cbb8ce49e7c2192079143d2eeefd2`
+- Bytes: `516360`
+- Previous bundle: `bundle_v1786074454_index-CP7X2-uQ_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-07T03:47:34.000Z — `index-CP7X2-uQ.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CP7X2-uQ.js`
