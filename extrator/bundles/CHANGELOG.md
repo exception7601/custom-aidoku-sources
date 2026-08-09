@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-09T05:00:17.000Z — `index-CEu49btu.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CEu49btu.js`
+- Saved folder: `bundle_v1786251617_index-CEu49btu_js`
+- SHA-256: `cd4eb53b44bb052e8c32e8bd7e2d1ffb9a1de0f8aad24333a41ed877a58ee6fa`
+- Bytes: `519916`
+- Previous bundle: `bundle_v1786111835_index-6fsLJZTW_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-07T14:10:35.000Z — `index-6fsLJZTW.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-6fsLJZTW.js`
