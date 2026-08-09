@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-09T18:34:02.000Z — `index-BsJInBeR.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BsJInBeR.js`
+- Saved folder: `bundle_v1786300442_index-BsJInBeR_js`
+- SHA-256: `f1ef2e37be012ddd42793562a136f8a5b2a7d7608c7a6e20690c6e8ff3e046bb`
+- Bytes: `520048`
+- Previous bundle: `bundle_v1786254754_index-DIG3NDFy_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-09T05:52:34.000Z — `index-DIG3NDFy.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DIG3NDFy.js`
