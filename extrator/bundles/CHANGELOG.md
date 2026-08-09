@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-09T05:52:34.000Z — `index-DIG3NDFy.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DIG3NDFy.js`
+- Saved folder: `bundle_v1786254754_index-DIG3NDFy_js`
+- SHA-256: `0a6a6ad5b1f1d9a02f24643487e845fe070cd205664c78e784d66dbd74fbbef9`
+- Bytes: `520037`
+- Previous bundle: `bundle_v1786251617_index-CEu49btu_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-09T05:00:17.000Z — `index-CEu49btu.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CEu49btu.js`
