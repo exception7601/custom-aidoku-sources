@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-11T20:56:51.000Z — `index-CtKkz-BO.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CtKkz-BO.js`
+- Saved folder: `bundle_v1786481811_index-CtKkz-BO_js`
+- SHA-256: `79a6959818b5789f172e3125f7a4d7e97baf5c9ccfe6fc3e4ead985f09f41592`
+- Bytes: `520885`
+- Previous bundle: `bundle_v1786333795_index-DQacJQoR_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-10T03:49:55.000Z — `index-DQacJQoR.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DQacJQoR.js`
