@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-12T04:02:37.000Z — `index-BHrR2Vbl.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BHrR2Vbl.js`
+- Saved folder: `bundle_v1786507357_index-BHrR2Vbl_js`
+- SHA-256: `56b74b60809a0c480e067f108cd37fe6bd5c63a7df0c96bb8130e9ea7f1b6e9f`
+- Bytes: `522902`
+- Previous bundle: `bundle_v1786481811_index-CtKkz-BO_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-11T20:56:51.000Z — `index-CtKkz-BO.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CtKkz-BO.js`
