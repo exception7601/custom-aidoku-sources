@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-12T08:13:41.000Z — `index-BlKdhSFp.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BlKdhSFp.js`
+- Saved folder: `bundle_v1786522421_index-BlKdhSFp_js`
+- SHA-256: `14691c3413891b7decc1e12d161f035ada50de4937e7c2f0123bdc16d58f20a1`
+- Bytes: `520595`
+- Previous bundle: `bundle_v1786515039_index-C6NqL2j1_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-12T06:10:39.000Z — `index-C6NqL2j1.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-C6NqL2j1.js`
