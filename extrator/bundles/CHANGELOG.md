@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-19T05:25:37.000Z — `index-Dx6wKzRP.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dx6wKzRP.js`
+- Saved folder: `bundle_v1787117137_index-Dx6wKzRP_js`
+- SHA-256: `f3f5ae27530b4e657174695af4f673cd1f174f07b3e68d9162e10c768879a219`
+- Bytes: `522788`
+- Previous bundle: `bundle_v1786893410_index-DQYwC2Wp_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-16T15:16:50.000Z — `index-DQYwC2Wp.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DQYwC2Wp.js`
