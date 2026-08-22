@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-22T05:22:16.000Z — `index-DoJMb2HT.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DoJMb2HT.js`
+- Saved folder: `bundle_v1787376136_index-DoJMb2HT_js`
+- SHA-256: `614957f3591c755d1ee4e91c5bd062e2b2f51092b56d710fa019b082d3860e26`
+- Bytes: `523938`
+- Previous bundle: `bundle_v1787372916_index-ay87zYFl_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-22T04:28:36.000Z — `index-ay87zYFl.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-ay87zYFl.js`
