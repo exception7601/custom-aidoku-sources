@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-23T06:33:29.000Z — `index-X73taFFn.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-X73taFFn.js`
+- Saved folder: `bundle_v1787466809_index-X73taFFn_js`
+- SHA-256: `e10f952683b66eabb20e345408c3796bfd37620fe2f767ec46dfc85f64fd474a`
+- Bytes: `528250`
+- Previous bundle: `bundle_v1787447010_index-CO6UlCUJ_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-23T01:03:30.000Z — `index-CO6UlCUJ.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CO6UlCUJ.js`
