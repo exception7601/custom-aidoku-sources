@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-25T06:38:50.000Z — `index-CAoOGsEi.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CAoOGsEi.js`
+- Saved folder: `bundle_v1787639930_index-CAoOGsEi_js`
+- SHA-256: `efc820175ce5ad4485de09d8c9793f5b3e251cf12d4c5f21ce93c18755285264`
+- Bytes: `529170`
+- Previous bundle: `bundle_v1787635630_index-BzC1InwB_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-25T05:27:10.000Z — `index-BzC1InwB.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BzC1InwB.js`
