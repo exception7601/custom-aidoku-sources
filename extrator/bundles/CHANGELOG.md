@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-25T05:27:10.000Z — `index-BzC1InwB.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BzC1InwB.js`
+- Saved folder: `bundle_v1787635630_index-BzC1InwB_js`
+- SHA-256: `28148a32b58ab73164b4dcd477be639e26a55bbf8217f5bf4cead2652cf17316`
+- Bytes: `528786`
+- Previous bundle: `bundle_v1787549681_index-BR0XWJt2_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-24T05:34:41.000Z — `index-BR0XWJt2.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BR0XWJt2.js`
