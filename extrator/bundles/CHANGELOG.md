@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-26T21:36:36.000Z — `index-CPNDVuo1.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CPNDVuo1.js`
+- Saved folder: `bundle_v1787780196_index-CPNDVuo1_js`
+- SHA-256: `b9b80bde8d17ff36ae25b4d86740d3cd6ecbf84c0705fd4a402f7a4bcd44ef51`
+- Bytes: `529246`
+- Previous bundle: `bundle_v1787696524_index-4oQ5sJeC_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-25T22:22:04.000Z — `index-4oQ5sJeC.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-4oQ5sJeC.js`
