@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-27T02:50:29.000Z — `index-CWhWXsBc.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CWhWXsBc.js`
+- Saved folder: `bundle_v1787799029_index-CWhWXsBc_js`
+- SHA-256: `6fe455806a4f873b49676cfffcdb3f9137e21d1bac371ef94d24f2a22061ec21`
+- Bytes: `529528`
+- Previous bundle: `bundle_v1787780196_index-CPNDVuo1_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-26T21:36:36.000Z — `index-CPNDVuo1.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CPNDVuo1.js`
