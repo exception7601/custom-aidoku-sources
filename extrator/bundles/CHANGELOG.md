@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-27T13:40:24.000Z — `index-FDkzAfrH.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-FDkzAfrH.js`
+- Saved folder: `bundle_v1787838024_index-FDkzAfrH_js`
+- SHA-256: `c9925e579fe8f5f7021fe86ed0fac9d718090a165a20a5ca3f64d7527c6681b7`
+- Bytes: `529553`
+- Previous bundle: `bundle_v1787799029_index-CWhWXsBc_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-27T02:50:29.000Z — `index-CWhWXsBc.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CWhWXsBc.js`
