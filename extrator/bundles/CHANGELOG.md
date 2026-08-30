@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-30T20:27:40.000Z — `index-BcdV9nq1.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BcdV9nq1.js`
+- Saved folder: `bundle_v1788121660_index-BcdV9nq1_js`
+- SHA-256: `beb041076722f13a58775ffca5b435fbb815ac4875f1a43e0ebc56ba4b2ec398`
+- Bytes: `559235`
+- Previous bundle: `bundle_v1788093179_index-Dlh9uyMf_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-30T12:32:59.000Z — `index-Dlh9uyMf.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-Dlh9uyMf.js`
