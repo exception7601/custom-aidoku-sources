@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-08-30T06:21:50.000Z — `index-Dz60E4CW.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dz60E4CW.js`
+- Saved folder: `bundle_v1788070910_index-Dz60E4CW_js`
+- SHA-256: `1cf294d6be1f83c02d77cdc1f09f6bc2979ab23dacdc089527e597b43e810a0a`
+- Bytes: `558823`
+- Previous bundle: `bundle_v1787906728_index-tZs6JQEj_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-28T08:45:28.000Z — `index-tZs6JQEj.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-tZs6JQEj.js`
