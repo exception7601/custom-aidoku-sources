@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-01T17:17:48.000Z — `index-CyXY0gek.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CyXY0gek.js`
+- Saved folder: `bundle_v1788283068_index-CyXY0gek_js`
+- SHA-256: `7eb94cf6d6c2dc52618c9f9672f6cf42ed75e07b7256ca635fd6a42e951d7bd6`
+- Bytes: `567069`
+- Previous bundle: `bundle_v1788267631_index-0EZHzUH1_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-01T13:00:31.000Z — `index-0EZHzUH1.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-0EZHzUH1.js`
