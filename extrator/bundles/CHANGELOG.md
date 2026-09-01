@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-01T07:09:41.000Z — `index-Dv5Yg4Rl.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dv5Yg4Rl.js`
+- Saved folder: `bundle_v1788246581_index-Dv5Yg4Rl_js`
+- SHA-256: `6b0e814a21c63d936ea071167e66c25cbec77669229eaab9a92874aa821a7ffc`
+- Bytes: `563722`
+- Previous bundle: `bundle_v1788121660_index-BcdV9nq1_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-08-30T20:27:40.000Z — `index-BcdV9nq1.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BcdV9nq1.js`
