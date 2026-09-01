@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-01T20:27:23.000Z — `index-D5Ra2Y_G.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-D5Ra2Y_G.js`
+- Saved folder: `bundle_v1788294443_index-D5Ra2Y_G_js`
+- SHA-256: `ae5e1dd2042c82107e2feea9cc1b518f2a55618b4c32e20f68612f4e574b1285`
+- Bytes: `564893`
+- Previous bundle: `bundle_v1788283068_index-CyXY0gek_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-01T17:17:48.000Z — `index-CyXY0gek.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CyXY0gek.js`
