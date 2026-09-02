@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-02T21:32:45.000Z — `index-6eZ266iW.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-6eZ266iW.js`
+- Saved folder: `bundle_v1788384765_index-6eZ266iW_js`
+- SHA-256: `479e2837731b7b1f807f3ad860cfc87aadd3fd1cfa5cd2e924a3c52fef74915a`
+- Bytes: `582870`
+- Previous bundle: `bundle_v1788326625_index-OP9LNOXw_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-02T05:23:45.000Z — `index-OP9LNOXw.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-OP9LNOXw.js`
