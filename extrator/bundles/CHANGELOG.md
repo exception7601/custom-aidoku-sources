@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-03T22:14:34.000Z — `index-DZfMtRxQ.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DZfMtRxQ.js`
+- Saved folder: `bundle_v1788473674_index-DZfMtRxQ_js`
+- SHA-256: `f4140de4a440d345955a51efe802171df28bd978a5913176f6c9b2c68cbc3838`
+- Bytes: `581746`
+- Previous bundle: `bundle_v1788438710_index-o_HylWKZ_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-03T12:31:50.000Z — `index-o_HylWKZ.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-o_HylWKZ.js`
