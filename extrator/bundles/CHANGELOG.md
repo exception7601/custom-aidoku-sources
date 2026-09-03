@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-03T12:31:50.000Z — `index-o_HylWKZ.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-o_HylWKZ.js`
+- Saved folder: `bundle_v1788438710_index-o_HylWKZ_js`
+- SHA-256: `5df28e91f414fe2a79a98d13a6610bc2c9eb146704bed9a9e232cb76fae9cff9`
+- Bytes: `581759`
+- Previous bundle: `bundle_v1788403326_index-CBJbH5DG_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-03T02:42:06.000Z — `index-CBJbH5DG.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CBJbH5DG.js`
