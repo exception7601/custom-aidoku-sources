@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-04T05:25:59.000Z — `index-Dk29bCUv.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dk29bCUv.js`
+- Saved folder: `bundle_v1788499559_index-Dk29bCUv_js`
+- SHA-256: `3b76370109a0b3fe6ded9e83cc32bcfcb3b55b2c3022143a7b7200bcb08eaa67`
+- Bytes: `588186`
+- Previous bundle: `bundle_v1788482496_index-DpF0bFNu_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-04T00:41:36.000Z — `index-DpF0bFNu.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DpF0bFNu.js`
