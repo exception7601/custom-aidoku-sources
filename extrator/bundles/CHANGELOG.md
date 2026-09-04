@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-04T18:01:37.000Z — `index-J8ZVHVGs.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-J8ZVHVGs.js`
+- Saved folder: `bundle_v1788544897_index-J8ZVHVGs_js`
+- SHA-256: `d055c060d3f60d74349d2eabc521949feecafd57abe538ec8193ebd375ef340e`
+- Bytes: `589160`
+- Previous bundle: `bundle_v1788499559_index-Dk29bCUv_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-04T05:25:59.000Z — `index-Dk29bCUv.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-Dk29bCUv.js`
