@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-04T00:41:36.000Z — `index-DpF0bFNu.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DpF0bFNu.js`
+- Saved folder: `bundle_v1788482496_index-DpF0bFNu_js`
+- SHA-256: `1db233a288df58bb47c3783c283aa5671d56880dc66fd89b446771254c31c671`
+- Bytes: `581746`
+- Previous bundle: `bundle_v1788473674_index-DZfMtRxQ_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-03T22:14:34.000Z — `index-DZfMtRxQ.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DZfMtRxQ.js`
