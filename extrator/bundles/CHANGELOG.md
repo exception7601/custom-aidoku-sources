@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-06T21:55:47.000Z — `index-BAcP_g_c.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BAcP_g_c.js`
+- Saved folder: `bundle_v1788731747_index-BAcP_g_c_js`
+- SHA-256: `e57b3db82d3dbb6abc2cc73425b8268c84800c456e7f0f4a496b33753f9ad2d7`
+- Bytes: `591215`
+- Previous bundle: `bundle_v1788680032_index-Dg-u2O1f_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-06T07:33:52.000Z — `index-Dg-u2O1f.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-Dg-u2O1f.js`
