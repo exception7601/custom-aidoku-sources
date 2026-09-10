@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-10T14:45:47.000Z — `index-PmiFYkVh.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-PmiFYkVh.js`
+- Saved folder: `bundle_v1789051547_index-PmiFYkVh_js`
+- SHA-256: `90f741d129e175adeef098eb494a6dc73f34a24d4e1feb4f1bbcf9e8cb85b151`
+- Bytes: `593347`
+- Previous bundle: `bundle_v1788940144_index-DTuP1ril_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-09T07:49:04.000Z — `index-DTuP1ril.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DTuP1ril.js`
