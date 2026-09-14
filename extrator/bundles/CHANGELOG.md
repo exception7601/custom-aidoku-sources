@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-14T17:32:11.000Z — `index-DXcGr0nC.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DXcGr0nC.js`
+- Saved folder: `bundle_v1789407131_index-DXcGr0nC_js`
+- SHA-256: `9c7e6f99fbcb3ad713a7fe5d344808f5529782c9a69fc74227e4e1fd28a3a870`
+- Bytes: `594170`
+- Previous bundle: `bundle_v1789051547_index-PmiFYkVh_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-10T14:45:47.000Z — `index-PmiFYkVh.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-PmiFYkVh.js`
