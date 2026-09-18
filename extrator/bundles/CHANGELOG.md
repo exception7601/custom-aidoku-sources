@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-18T12:39:39.000Z — `index-Dp2vADDo.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dp2vADDo.js`
+- Saved folder: `bundle_v1789735179_index-Dp2vADDo_js`
+- SHA-256: `34cc830820ca8c77e39929d0a1a6707ed4057da1b2d9d4b1a19277566db63dcc`
+- Bytes: `596060`
+- Previous bundle: `bundle_v1789407131_index-DXcGr0nC_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-14T17:32:11.000Z — `index-DXcGr0nC.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DXcGr0nC.js`
