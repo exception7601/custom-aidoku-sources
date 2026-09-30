@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-09-30T13:17:51.000Z — `index-BIR3xN57.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BIR3xN57.js`
+- Saved folder: `bundle_v1790774271_index-BIR3xN57_js`
+- SHA-256: `067d0e2f96ac9d5bf113fca3f71808a21eae1f134439709731b52d7b1d2f8e97`
+- Bytes: `597137`
+- Previous bundle: `bundle_v1789735179_index-Dp2vADDo_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-18T12:39:39.000Z — `index-Dp2vADDo.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-Dp2vADDo.js`
