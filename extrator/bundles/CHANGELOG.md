@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-10-04T15:38:22.000Z — `index-_vYcpixH.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-_vYcpixH.js`
+- Saved folder: `bundle_v1791128302_index-_vYcpixH_js`
+- SHA-256: `9ec3fd99c50602fa5c197bcfce2f32bdc948151da8b9b2c32c1fa5576073d64c`
+- Bytes: `600517`
+- Previous bundle: `bundle_v1791109926_index-BwxArJcs_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-10-04T10:32:06.000Z — `index-BwxArJcs.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BwxArJcs.js`
