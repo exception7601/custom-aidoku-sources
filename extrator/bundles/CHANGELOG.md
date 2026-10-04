@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-10-04T10:32:06.000Z — `index-BwxArJcs.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-BwxArJcs.js`
+- Saved folder: `bundle_v1791109926_index-BwxArJcs_js`
+- SHA-256: `bd02bed225c672f0953a841d3eb8d3f0b54a5d639338c623d89286eb55e214e1`
+- Bytes: `600077`
+- Previous bundle: `bundle_v1790774271_index-BIR3xN57_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-09-30T13:17:51.000Z — `index-BIR3xN57.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-BIR3xN57.js`
