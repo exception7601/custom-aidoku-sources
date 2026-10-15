@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-10-15T07:59:07.000Z — `index-CKHCWPsr.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-CKHCWPsr.js`
+- Saved folder: `bundle_v1792051147_index-CKHCWPsr_js`
+- SHA-256: `e6de58d46e60da94ebb81d2a12b5d9c48dcbdf24ae003c3ea7467291773ae65d`
+- Bytes: `603351`
+- Previous bundle: `bundle_v1791128302_index-_vYcpixH_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-10-04T15:38:22.000Z — `index-_vYcpixH.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-_vYcpixH.js`
