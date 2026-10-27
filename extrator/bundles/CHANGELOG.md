@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-10-27T05:56:06.000Z — `index-DS6R1dIm.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-DS6R1dIm.js`
+- Saved folder: `bundle_v1793080566_index-DS6R1dIm_js`
+- SHA-256: `b56bbfed44c4f101dd81a22d6bbb454b7f9b3dd8bd82288a6ad0049ee578a001`
+- Bytes: `603921`
+- Previous bundle: `bundle_v1792051147_index-CKHCWPsr_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-10-15T07:59:07.000Z — `index-CKHCWPsr.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-CKHCWPsr.js`
