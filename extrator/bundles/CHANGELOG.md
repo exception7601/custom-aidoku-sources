@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-11-07T08:14:58.000Z — `index-Dl-DGSPV.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-Dl-DGSPV.js`
+- Saved folder: `bundle_v1794039298_index-Dl-DGSPV_js`
+- SHA-256: `9add453798066d80f739fcaba5c748fccdb9968f5b731654366c3ab8041568f6`
+- Bytes: `604087`
+- Previous bundle: `bundle_v1793080566_index-DS6R1dIm_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-10-27T05:56:06.000Z — `index-DS6R1dIm.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-DS6R1dIm.js`
