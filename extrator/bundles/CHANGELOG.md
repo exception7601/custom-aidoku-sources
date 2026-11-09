@@ -1,5 +1,16 @@
 # Bundle changelog
 
+## 2026-11-09T09:00:34.000Z — `index-gYXv-VSj.js`
+
+- Bundle URL: `https://toonlivre.net/assets/index-gYXv-VSj.js`
+- Saved folder: `bundle_v1794214834_index-gYXv-VSj_js`
+- SHA-256: `d5ccdcd695c12027a3c0a903da7e4f6a58a529211e0c806fee40fad6a4bc6696`
+- Bytes: `605900`
+- Previous bundle: `bundle_v1794039298_index-Dl-DGSPV_js`.
+- Hash changed: yes.
+- File name changed: yes.
+- Signature mode: no static rules recognized; inspect `analysis.json` for dynamic logic.
+- Site notes: fill this section after reviewing the downloaded bundle.
 ## 2026-11-07T08:14:58.000Z — `index-Dl-DGSPV.js`
 
 - Bundle URL: `https://toonlivre.net/assets/index-Dl-DGSPV.js`
